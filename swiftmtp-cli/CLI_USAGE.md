@@ -42,7 +42,8 @@ Before interacting with files, you must identify the target `deviceId` and `stor
   * `-a`, `-l`, `-al`, `-la`: Optional flags to include hidden files (files starting with `.`).
   * `<path>`: Must be an absolute path (e.g., `/` or `/DCIM`).
   
-  **Output format**: `<DIR|     > <Size>\t<FileName>`
+  **Output format**: `<DIR|     > <Size>  <DateModified>  <FileName>`
+  *Note: Output is sorted alphabetically by file name, case-insensitively.*
 
 - **Download Files/Directories (`pull`)**
   ```bash
@@ -86,6 +87,6 @@ mtp:/>
 ## Technical Notes & Best Practices for AI Agents
 
 1. **Path Resolution in Shell**: The shell correctly resolves absolute and relative paths. When in doubt about your current location, use `pwd`.
-2. **Progress Bars**: During `pull` and `push` operations, a CLI progress bar will dynamically write to `stdout` using carriage returns (`\r`). The completion message will be printed on a new line (`\nPull complete.` or `\nPull failed.`).
+2. **Progress Bars**: During `pull` and `push` operations, a CLI progress bar will dynamically write to `stdout` using carriage returns (`\r`). The progress bar is automatically cleared from the terminal once the transfer completes. The completion message will be printed on a new line (`\nPull complete.` or `\nPull failed.`).
 3. **Synchronous Execution**: Operations in `swiftmtp-cli` are strictly synchronous and block until completion, making it safe and predictable for automated scripting environments.
 4. **Device Connection State**: Ensure that the device is fully attached and unlocked (some devices restrict MTP access when the screen is locked). If `devices` returns an empty list, verify physical connectivity and device permissions.

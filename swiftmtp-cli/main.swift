@@ -41,7 +41,7 @@ func formatBytes(_ bytes: Int64) -> String {
 struct GomtpWalkFileInfo: Decodable {
     let size: Int64
     let isFolder: Bool
-    let dateAdded: String
+    let dateModified: String
     let name: String
     let path: String
     let extension_: String
@@ -50,7 +50,7 @@ struct GomtpWalkFileInfo: Decodable {
     private enum CodingKeys: String, CodingKey {
         case size
         case isFolder
-        case dateAdded
+        case dateModified
         case name
         case path
         case extension_ = "extension"
@@ -606,7 +606,8 @@ class InteractiveShell {
             let type = file.isFolder ? "<DIR>" : "     "
             let sizeStr = file.isFolder ? "-" : String(file.size)
             let paddedSize = String(repeating: " ", count: max(0, 12 - sizeStr.count)) + sizeStr
-            print("\(type) \(paddedSize)  \(file.name)")
+            let dateStr = file.dateModified.padding(toLength: 20, withPad: " ", startingAt: 0)
+            print("\(type) \(paddedSize)  \(dateStr)  \(file.name)")
         }
     }
     
@@ -704,7 +705,7 @@ func printUsage() {
 
 func printVersion() {
     print("SwiftMTP App    v1.2.3")
-    print("swiftmtp-cli    v0.1.0")
+    print("swiftmtp-cli    v0.1.1")
     
     var sysinfo = utsname()
     uname(&sysinfo)
@@ -799,7 +800,8 @@ func main() {
             let type = file.isFolder ? "<DIR>" : "     "
             let sizeStr = file.isFolder ? "-" : String(file.size)
             let paddedSize = String(repeating: " ", count: max(0, 12 - sizeStr.count)) + sizeStr
-            print("\(type) \(paddedSize)  \(file.name)")
+            let dateStr = file.dateModified.padding(toLength: 20, withPad: " ", startingAt: 0)
+            print("\(type) \(paddedSize)  \(dateStr)  \(file.name)")
         }
         CLIMTPClient.dispose(deviceId: deviceId)
         
