@@ -420,7 +420,7 @@
 				CODE_SIGN_ENTITLEMENTS = SwiftMTP/SwiftMTP.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 20;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_APP_SANDBOX = YES;
@@ -442,10 +442,8 @@
 				MARKETING_VERSION = 1.2.3;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"-ld_new",
 					"$(SRCROOT)/lib/gomtp.dylib",
 					"$(SRCROOT)/lib/libusb.dylib",
-					"-Wl,-w",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = me.neighborz.swiftmtp;
 				PRODUCT_MODULE_NAME = SwiftMTP;
@@ -469,7 +467,7 @@
 				CODE_SIGN_ENTITLEMENTS = SwiftMTP/SwiftMTP.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 20;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_APP_SANDBOX = YES;
@@ -491,10 +489,8 @@
 				MARKETING_VERSION = 1.2.3;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"-ld_classic",
 					"$(SRCROOT)/lib/gomtp.dylib",
 					"$(SRCROOT)/lib/libusb.dylib",
-					"-Wl,-w",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = me.neighborz.swiftmtp;
 				PRODUCT_MODULE_NAME = SwiftMTP;
@@ -604,8 +600,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(SRCROOT)/lib",
 					"@executable_path",
+					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
@@ -622,6 +618,7 @@
 					"$(SRCROOT)/lib/libusb.dylib",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "SwiftMTP-Bridging-Header.h";
@@ -657,8 +654,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(SRCROOT)/lib",
 					"@executable_path",
+					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
@@ -674,6 +671,7 @@
 					"$(SRCROOT)/lib/libusb.dylib",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OBJC_BRIDGING_HEADER = "SwiftMTP-Bridging-Header.h";
