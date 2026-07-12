@@ -57,7 +57,7 @@ final class FavoritesManager: ObservableObject {
            let decoded = try? JSONDecoder().decode([FavoriteItem].self, from: data) {
             userFavorites = decoded
         } else {
-            userFavorites = []
+            userFavorites = FavoriteItem.defaultUserFavorites
         }
 
         // Load saved order (array of UUID strings)

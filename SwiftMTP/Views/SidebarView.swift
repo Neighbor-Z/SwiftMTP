@@ -85,13 +85,13 @@ struct SidebarView: View {
                 .padding(.horizontal, 4)
         )
         .contextMenu {
-            if !item.isBuiltIn {
-                Button(role: .destructive) {
-                    favoritesManager.removeFavorite(id: item.id)
-                } label: {
-                    Label(String(localized: "Remove from Favorites"), systemImage: "star.slash")
-                }
+            Button(role: .destructive) {
+                favoritesManager.removeFavorite(id: item.id)
+            } label: {
+                Label(String(localized: "Remove from Favorites"), systemImage: "star.slash")
             }
+            .disabled(item.isBuiltIn)
+            .help(item.isBuiltIn ? String(localized: "Built-in item cannot be removed.") : String(localized: "Remove item from Favorites list."))
         }
     }
 
