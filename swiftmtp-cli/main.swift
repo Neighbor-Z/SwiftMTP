@@ -41,7 +41,7 @@ func formatBytes(_ bytes: Int64) -> String {
 struct GomtpWalkFileInfo: Decodable {
     let size: Int64
     let isFolder: Bool
-    let dateModified: String
+    let dateAdded: String
     let name: String
     let path: String
     let extension_: String
@@ -50,7 +50,7 @@ struct GomtpWalkFileInfo: Decodable {
     private enum CodingKeys: String, CodingKey {
         case size
         case isFolder
-        case dateModified
+        case dateAdded
         case name
         case path
         case extension_ = "extension"
@@ -691,7 +691,7 @@ class InteractiveShell {
             let type = file.isFolder ? "<DIR>" : "     "
             let sizeStr = file.isFolder ? "-" : String(file.size)
             let paddedSize = String(repeating: " ", count: max(0, 12 - sizeStr.count)) + sizeStr
-            let dateStr = file.dateModified.padding(toLength: 20, withPad: " ", startingAt: 0)
+            let dateStr = file.dateAdded.padding(toLength: 20, withPad: " ", startingAt: 0)
             print("\(type) \(paddedSize)  \(dateStr)  \(file.name)")
         }
     }
@@ -1006,13 +1006,55 @@ func printVersion() {
 }
 
 func main() {
-    let args = CommandLine.arguments
+    var args = CommandLine.arguments
     if args.count < 2 {
         printUsage()
         exit(1)
     }
     
     let command = args[1]
+    
+    let deviceCommands = ["storages", "ls", "pull", "push", "rm", "mv", "mkdir", "shell", "info"]
+    if deviceCommands.contains(command) {
+        if let devices = CLIMTPClient.fetchDevices() {
+            var deviceIdIndex = 2
+            
+            if command == "ls" && args.count > 2 && (args[2] == "-a" || args[2] == "-l" || args[2] == "-al" || args[2] == "-la") {
+                deviceIdIndex = 3
+            } else if command == "rm" && args.count > 2 && args[2] == "-r" {
+                deviceIdIndex = 3
+            }
+            
+            var providedDeviceId = false
+            if args.count > deviceIdIndex {
+                let arg = args[deviceIdIndex]
+                for dev in devices {
+                    let parts = dev.id.components(separatedBy: "|")
+                    if dev.id == arg || parts.contains(arg) {
+                        providedDeviceId = true
+                        break
+                    }
+                }
+                if !providedDeviceId && arg.contains("|") {
+                    providedDeviceId = true
+                }
+            }
+            
+            let omitted = (args.count <= deviceIdIndex) || !providedDeviceId
+            
+            if omitted {
+                if devices.count == 1 {
+                    args.insert(devices[0].id, at: deviceIdIndex)
+                } else if devices.count == 0 {
+                    print("Error: No MTP devices connected. Please connect a device.")
+                    exit(1)
+                } else {
+                    print("Error: Multiple MTP devices connected (\(devices.count)). You must explicitly specify a valid <deviceId>.")
+                    exit(1)
+                }
+            }
+        }
+    }
     
     switch command {
     case "-h", "--help", "help":
@@ -1088,7 +1130,7 @@ func main() {
             let type = file.isFolder ? "<DIR>" : "     "
             let sizeStr = file.isFolder ? "-" : String(file.size)
             let paddedSize = String(repeating: " ", count: max(0, 12 - sizeStr.count)) + sizeStr
-            let dateStr = file.dateModified.padding(toLength: 20, withPad: " ", startingAt: 0)
+            let dateStr = file.dateAdded.padding(toLength: 20, withPad: " ", startingAt: 0)
             print("\(type) \(paddedSize)  \(dateStr)  \(file.name)")
         }
         CLIMTPClient.dispose(deviceId: deviceId)
