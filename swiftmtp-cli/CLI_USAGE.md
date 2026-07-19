@@ -57,6 +57,30 @@ Before interacting with files, you must identify the target `deviceId` and `stor
   ```
   Uploads the local file or directory to the specified path on the MTP device.
 
+- **Delete File/Directory (`rm`)**
+  ```bash
+  swiftmtp-cli rm [-r] <deviceId> <storageId> <remotePath>
+  ```
+  Deletes the specified file or directory on the MTP device. Use `-r` for directories.
+
+- **Rename File/Directory (`mv`)**
+  ```bash
+  swiftmtp-cli mv <deviceId> <storageId> <remotePath> <newPath>
+  ```
+  Renames the file or directory. The `newPath` must be in the same parent directory as `remotePath`.
+
+- **Create Directory (`mkdir`)**
+  ```bash
+  swiftmtp-cli mkdir <deviceId> <storageId> <remotePath>
+  ```
+  Creates a new directory on the MTP device. The parent directory must already exist.
+
+- **Get Device Information (`info`)**
+  ```bash
+  swiftmtp-cli info <deviceId> <storageId>
+  ```
+  Displays detailed information about the MTP device, including Manufacturer, Model, USB Protocol, and Storage Space.
+
 ---
 
 ## 2. Interactive Shell (REPL) Mode
@@ -79,6 +103,10 @@ mtp:/>
 - **`cd <path>`**: Change the current working directory. The path can be relative to the current directory or an absolute path (starting with `/`).
 - **`pull <remote_path> <local_path>`**: Download from the device. Relative remote paths are evaluated against the current working directory.
 - **`push <local_path> <remote_path>`**: Upload to the device.
+- **`rm [-r] <path>`**: Delete the specified file or directory on the device (use `-r` for directories).
+- **`mv <path> <new_path>`**: Rename a file or directory.
+- **`mkdir <path>`**: Create a new directory.
+- **`info`**: Show detailed device and storage information, including USB protocol and connection speed.
 - **`help`**: Print the shell help menu.
 - **`exit`** or **`quit`**: Terminate the session and exit the CLI.
 

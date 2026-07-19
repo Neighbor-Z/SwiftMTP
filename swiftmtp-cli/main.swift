@@ -308,6 +308,79 @@ class CLIMTPClient {
         return true
     }
     
+    static func delete(deviceId: String, storageId: Int, files: [String]) -> Bool {
+        let input: [String: Any] = [
+            "deviceId": deviceId,
+            "storageId": storageId,
+            "files": files
+        ]
+        
+        guard let jsonStr = toJson(input) else { return false }
+        
+        let sem = DispatchSemaphore(value: 0)
+        CallbackState.shared.semaphore = sem
+        jsonStr.withCString { ptr in
+            GomtpDeleteFile(ptr, cbDone)
+        }
+        sem.wait()
+        
+        guard let result = CallbackState.shared.lastResultJson else { return false }
+        if let err = extractError(result) {
+            print("Error deleting: \(err)")
+            return false
+        }
+        return true
+    }
+    
+    static func mkdir(deviceId: String, storageId: Int, path: String) -> Bool {
+        let input: [String: Any] = [
+            "deviceId": deviceId,
+            "storageId": storageId,
+            "fullPath": path
+        ]
+        
+        guard let jsonStr = toJson(input) else { return false }
+        
+        let sem = DispatchSemaphore(value: 0)
+        CallbackState.shared.semaphore = sem
+        jsonStr.withCString { ptr in
+            GomtpMakeDirectory(ptr, cbDone)
+        }
+        sem.wait()
+        
+        guard let result = CallbackState.shared.lastResultJson else { return false }
+        if let err = extractError(result) {
+            print("Error creating directory: \(err)")
+            return false
+        }
+        return true
+    }
+    
+    static func rename(deviceId: String, storageId: Int, path: String, newName: String) -> Bool {
+        let input: [String: Any] = [
+            "deviceId": deviceId,
+            "storageId": storageId,
+            "fullPath": path,
+            "newFileName": newName
+        ]
+        
+        guard let jsonStr = toJson(input) else { return false }
+        
+        let sem = DispatchSemaphore(value: 0)
+        CallbackState.shared.semaphore = sem
+        jsonStr.withCString { ptr in
+            GomtpRenameFile(ptr, cbDone)
+        }
+        sem.wait()
+        
+        guard let result = CallbackState.shared.lastResultJson else { return false }
+        if let err = extractError(result) {
+            print("Error renaming: \(err)")
+            return false
+        }
+        return true
+    }
+    
     // MARK: - Utilities
     
     private static func toJson(_ dict: [String: Any]) -> String? {
@@ -567,6 +640,14 @@ class InteractiveShell {
                 handlePull(args: args)
             case "push":
                 handlePush(args: args)
+            case "rm":
+                handleRm(args: args)
+            case "mv":
+                handleMv(args: args)
+            case "mkdir":
+                handleMkdir(args: args)
+            case "info":
+                handleInfo(args: args)
             case "help":
                 print("Available commands:")
                 print("  ls [-a] [path]       - List directory")
@@ -574,6 +655,10 @@ class InteractiveShell {
                 print("  pwd                  - Print working directory")
                 print("  pull <file> <local>  - Download file to local path")
                 print("  push <local> <dest>  - Upload local file to device path")
+                print("  rm [-r] <path>       - Delete file or directory (use -r for directories)")
+                print("  mv <path> <new_path> - Rename file or directory")
+                print("  mkdir <path>         - Create a new directory")
+                print("  info                 - Show device information")
                 print("  exit                 - Quit the shell")
             default:
                 print("Unknown command: \(command)")
@@ -634,6 +719,26 @@ class InteractiveShell {
         let remote = resolvePath(args[1])
         let local = NSString(string: args[2]).expandingTildeInPath
         
+        let remoteName = remote.components(separatedBy: "/").last ?? ""
+        var localDestination = local
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: local, isDirectory: &isDir) {
+            if isDir.boolValue {
+                localDestination = (local as NSString).appendingPathComponent(remoteName)
+            }
+        }
+        
+        if FileManager.default.fileExists(atPath: localDestination) {
+            print("pull: '\(localDestination)' already exists locally. Overwrite? [y/n]: ", terminator: "")
+            fflush(stdout)
+            if let response = readLine(), response.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "y" {
+                // proceed
+            } else {
+                print("Aborted.")
+                return
+            }
+        }
+        
         print("Pulling \(remote) to \(local)...")
         if CLIMTPClient.pull(deviceId: deviceId, storageId: storageId, sources: [remote], destination: local) {
             print("\nPull complete.")
@@ -650,11 +755,190 @@ class InteractiveShell {
         let local = NSString(string: args[1]).expandingTildeInPath
         let remote = resolvePath(args[2])
         
+        let localName = URL(fileURLWithPath: local).lastPathComponent
+        if let remoteFiles = CLIMTPClient.walk(deviceId: deviceId, storageId: storageId, path: remote) {
+            if remoteFiles.contains(where: { $0.name == localName }) {
+                print("push: '\(localName)' already exists in '\(remote)'. Overwrite? [y/n]: ", terminator: "")
+                fflush(stdout)
+                if let response = readLine(), response.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "y" {
+                    // proceed
+                } else {
+                    print("Aborted.")
+                    return
+                }
+            }
+        }
+        
         print("Pushing \(local) to \(remote)...")
         if CLIMTPClient.push(deviceId: deviceId, storageId: storageId, sources: [local], destination: remote) {
             print("\nPush complete.")
         } else {
             print("\nPush failed.")
+        }
+    }
+    
+    private func handleRm(args: [String]) {
+        var isRecursive = false
+        var targetArg: String? = nil
+        
+        for arg in args.dropFirst() {
+            if arg == "-r" || arg == "-R" {
+                isRecursive = true
+            } else if targetArg == nil {
+                targetArg = arg
+            } else {
+                print("Usage: rm [-r] <path>")
+                return
+            }
+        }
+        
+        guard let targetName = targetArg else {
+            print("Usage: rm [-r] <path>")
+            return
+        }
+        
+        let targetPath = resolvePath(targetName)
+        if targetPath == "/" {
+            print("rm: cannot remove root directory")
+            return
+        }
+        
+        let components = targetPath.components(separatedBy: "/")
+        let childName = components.last ?? ""
+        var parentPath = String(targetPath.prefix(upTo: targetPath.lastIndex(of: "/") ?? targetPath.endIndex))
+        if parentPath.isEmpty { parentPath = "/" }
+        
+        guard let files = CLIMTPClient.walk(deviceId: deviceId, storageId: storageId, path: parentPath) else {
+            print("rm: failed to access parent directory")
+            return
+        }
+        
+        guard let targetFile = files.first(where: { $0.name == childName }) else {
+            print("rm: no such file or directory: \(targetName)")
+            return
+        }
+        
+        if targetFile.isFolder && !isRecursive {
+            print("rm: \(targetName): is a directory (use -r to delete)")
+            return
+        }
+        
+        print("Are you sure you want to delete '\(targetPath)'? [y/n]: ", terminator: "")
+        fflush(stdout)
+        if let response = readLine(), response.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "y" {
+            print("Deleting \(targetPath)...")
+            if CLIMTPClient.delete(deviceId: deviceId, storageId: storageId, files: [targetPath]) {
+                print("Deleted.")
+            } else {
+                print("Failed to delete.")
+            }
+        } else {
+            print("Aborted.")
+        }
+    }
+    
+    private func handleMv(args: [String]) {
+        if args.count < 3 {
+            print("Usage: mv <path> <new_path>")
+            return
+        }
+        let targetPath = resolvePath(args[1])
+        let targetNewPath = resolvePath(args[2])
+        
+        let targetComponents = targetPath.components(separatedBy: "/")
+        let newComponents = targetNewPath.components(separatedBy: "/")
+        
+        if targetComponents.dropLast() != newComponents.dropLast() {
+            print("mv: can only be used for renaming, not moving. The target directory must be the same.")
+            return
+        }
+        
+        if targetPath == "/" {
+            print("mv: cannot rename root directory")
+            return
+        }
+        
+        let newName = newComponents.last ?? ""
+        if newName.isEmpty {
+            print("mv: new name cannot be empty")
+            return
+        }
+        var parentPath = String(targetPath.prefix(upTo: targetPath.lastIndex(of: "/") ?? targetPath.endIndex))
+        if parentPath.isEmpty { parentPath = "/" }
+        
+        if let files = CLIMTPClient.walk(deviceId: deviceId, storageId: storageId, path: parentPath) {
+            if files.contains(where: { $0.name == newName }) {
+                print("mv: a file or directory named '\(newName)' already exists")
+                return
+            }
+        }
+        
+        print("Renaming '\(targetPath)' to '\(newName)'...")
+        if CLIMTPClient.rename(deviceId: deviceId, storageId: storageId, path: targetPath, newName: newName) {
+            print("Renamed.")
+        } else {
+            print("Failed to rename.")
+        }
+    }
+    
+    private func handleMkdir(args: [String]) {
+        if args.count < 2 {
+            print("Usage: mkdir <path>")
+            return
+        }
+        let targetPath = resolvePath(args[1])
+        
+        let components = targetPath.components(separatedBy: "/")
+        let newName = components.last ?? ""
+        if newName.isEmpty {
+            print("mkdir: directory name cannot be empty")
+            return
+        }
+        
+        var parentPath = String(targetPath.prefix(upTo: targetPath.lastIndex(of: "/") ?? targetPath.endIndex))
+        if parentPath.isEmpty { parentPath = "/" }
+        
+        guard let files = CLIMTPClient.walk(deviceId: deviceId, storageId: storageId, path: parentPath) else {
+            print("mkdir: parent directory '\(parentPath)' does not exist")
+            return
+        }
+        
+        if files.contains(where: { $0.name == newName }) {
+            print("mkdir: a file or directory named '\(newName)' already exists")
+            return
+        }
+        
+        print("Creating directory '\(targetPath)'...")
+        if CLIMTPClient.mkdir(deviceId: deviceId, storageId: storageId, path: targetPath) {
+            print("Created.")
+        } else {
+            print("Failed to create directory.")
+        }
+    }
+    
+    private func handleInfo(args: [String]) {
+        guard let devices = CLIMTPClient.fetchDevices(),
+              let device = devices.first(where: { $0.id == deviceId }) else {
+            print("Device info not available.")
+            return
+        }
+        
+        let usbMonitor = CLIUSBMonitor()
+        let usbResult = usbMonitor.detectCurrentUSBProtocol(productHint: device.model, manufacturerHint: device.manufacturer)
+        
+        print("""
+        Device Information
+        ------------------
+        Manufacturer: \(device.manufacturer.isEmpty ? "-" : device.manufacturer)
+        Device Model: \(device.model)
+        Protocol:     \(usbResult.protocolName) (\(usbResult.speedMbps) Mbps)
+        """)
+        
+        if let storages = CLIMTPClient.fetchStorages(deviceId: deviceId),
+           let storage = storages.first(where: { Int($0.id) == storageId }) {
+            print("Storage:      \(storage.name)")
+            print("Free Space:   \(storage.freeSpace)")
+            print("Total Space:  \(storage.totalSpace)")
         }
     }
     
@@ -693,7 +977,11 @@ func printUsage() {
       swiftmtp-cli ls [-a] <deviceId> <storageId> <path>
       swiftmtp-cli pull <deviceId> <storageId> <remotePath> <localPath>
       swiftmtp-cli push <deviceId> <storageId> <localPath> <remotePath>
+      swiftmtp-cli rm [-r] <deviceId> <storageId> <remotePath>
+      swiftmtp-cli mv <deviceId> <storageId> <remotePath> <newPath>
+      swiftmtp-cli mkdir <deviceId> <storageId> <remotePath>
       swiftmtp-cli shell <deviceId> <storageId>
+      swiftmtp-cli info <deviceId> <storageId>
       
     Options:
       -h, --help     Show this help message and exit
@@ -704,8 +992,8 @@ func printUsage() {
 }
 
 func printVersion() {
-    print("SwiftMTP App    v1.2.3")
-    print("swiftmtp-cli    v0.1.1")
+    print("SwiftMTP App    v1.2.4")
+    print("swiftmtp-cli    v0.1.2")
     
     var sysinfo = utsname()
     uname(&sysinfo)
@@ -815,6 +1103,26 @@ func main() {
         let remotePath = args[4]
         let localPath = NSString(string: args[5]).expandingTildeInPath
         
+        let remoteName = remotePath.components(separatedBy: "/").last ?? ""
+        var localDestination = localPath
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: localPath, isDirectory: &isDir) {
+            if isDir.boolValue {
+                localDestination = (localPath as NSString).appendingPathComponent(remoteName)
+            }
+        }
+        
+        if FileManager.default.fileExists(atPath: localDestination) {
+            print("pull: '\(localDestination)' already exists locally. Overwrite? [y/n]: ", terminator: "")
+            fflush(stdout)
+            if let response = readLine(), response.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "y" {
+                // proceed
+            } else {
+                print("Aborted.")
+                exit(1)
+            }
+        }
+        
         if !CLIMTPClient.initialize(deviceId: deviceId) { exit(1) }
         if CLIMTPClient.pull(deviceId: deviceId, storageId: storageId, sources: [remotePath], destination: localPath) {
             print("Pull complete.")
@@ -834,12 +1142,215 @@ func main() {
         let remotePath = args[5]
         
         if !CLIMTPClient.initialize(deviceId: deviceId) { exit(1) }
+        
+        let localName = URL(fileURLWithPath: localPath).lastPathComponent
+        if let remoteFiles = CLIMTPClient.walk(deviceId: deviceId, storageId: storageId, path: remotePath) {
+            if remoteFiles.contains(where: { $0.name == localName }) {
+                print("push: '\(localName)' already exists in '\(remotePath)'. Overwrite? [y/n]: ", terminator: "")
+                fflush(stdout)
+                if let response = readLine(), response.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "y" {
+                    // proceed
+                } else {
+                    print("Aborted.")
+                    CLIMTPClient.dispose(deviceId: deviceId)
+                    exit(1)
+                }
+            }
+        }
+        
         if CLIMTPClient.push(deviceId: deviceId, storageId: storageId, sources: [localPath], destination: remotePath) {
             print("Push complete.")
         } else {
             print("Push failed.")
         }
         CLIMTPClient.dispose(deviceId: deviceId)
+        
+    case "rm":
+        var offset = 0
+        var isRecursive = false
+        if args.count > 2 && (args[2] == "-r" || args[2] == "-R") {
+            isRecursive = true
+            offset = 1
+        }
+        
+        if args.count < 5 + offset {
+            print("Usage: swiftmtp-cli rm [-r] <deviceId> <storageId> <remotePath>")
+            exit(1)
+        }
+        
+        let deviceId = args[2 + offset]
+        let storageId = Int(args[3 + offset]) ?? 0
+        let path = args[4 + offset]
+        
+        if !CLIMTPClient.initialize(deviceId: deviceId) { exit(1) }
+        
+        if path == "/" {
+            print("rm: cannot remove root directory")
+            CLIMTPClient.dispose(deviceId: deviceId)
+            exit(1)
+        }
+        
+        let components = path.components(separatedBy: "/")
+        let childName = components.last ?? ""
+        var parentPath = String(path.prefix(upTo: path.lastIndex(of: "/") ?? path.endIndex))
+        if parentPath.isEmpty { parentPath = "/" }
+        
+        guard let files = CLIMTPClient.walk(deviceId: deviceId, storageId: storageId, path: parentPath) else {
+            print("rm: failed to access parent directory")
+            CLIMTPClient.dispose(deviceId: deviceId)
+            exit(1)
+        }
+        
+        guard let targetFile = files.first(where: { $0.name == childName }) else {
+            print("rm: no such file or directory: \(path)")
+            CLIMTPClient.dispose(deviceId: deviceId)
+            exit(1)
+        }
+        
+        if targetFile.isFolder && !isRecursive {
+            print("rm: \(path): is a directory (use -r to delete)")
+            CLIMTPClient.dispose(deviceId: deviceId)
+            exit(1)
+        }
+        
+        print("Are you sure you want to delete '\(path)'? [y/n]: ", terminator: "")
+        fflush(stdout)
+        if let response = readLine(), response.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "y" {
+            print("Deleting \(path)...")
+            if CLIMTPClient.delete(deviceId: deviceId, storageId: storageId, files: [path]) {
+                print("Deleted.")
+            } else {
+                print("Failed to delete.")
+            }
+        } else {
+            print("Aborted.")
+        }
+        CLIMTPClient.dispose(deviceId: deviceId)
+        
+    case "mv":
+        if args.count < 6 {
+            print("Usage: swiftmtp-cli mv <deviceId> <storageId> <remotePath> <newPath>")
+            exit(1)
+        }
+        
+        let deviceId = args[2]
+        let storageId = Int(args[3]) ?? 0
+        let path = args[4]
+        let newPath = args[5]
+        
+        let targetComponents = path.components(separatedBy: "/")
+        let newComponents = newPath.components(separatedBy: "/")
+        
+        if targetComponents.dropLast() != newComponents.dropLast() {
+            print("mv: can only be used for renaming, not moving. The target directory must be the same.")
+            exit(1)
+        }
+        
+        if path == "/" {
+            print("mv: cannot rename root directory")
+            exit(1)
+        }
+        
+        if !CLIMTPClient.initialize(deviceId: deviceId) { exit(1) }
+        
+        let newName = newComponents.last ?? ""
+        if newName.isEmpty {
+            print("mv: new name cannot be empty")
+            exit(1)
+        }
+        var parentPath = String(path.prefix(upTo: path.lastIndex(of: "/") ?? path.endIndex))
+        if parentPath.isEmpty { parentPath = "/" }
+        
+        if let files = CLIMTPClient.walk(deviceId: deviceId, storageId: storageId, path: parentPath) {
+            if files.contains(where: { $0.name == newName }) {
+                print("mv: a file or directory named '\(newName)' already exists")
+                CLIMTPClient.dispose(deviceId: deviceId)
+                exit(1)
+            }
+        }
+        
+        print("Renaming '\(path)' to '\(newName)'...")
+        if CLIMTPClient.rename(deviceId: deviceId, storageId: storageId, path: path, newName: newName) {
+            print("Renamed.")
+        } else {
+            print("Failed to rename.")
+        }
+        CLIMTPClient.dispose(deviceId: deviceId)
+        
+    case "mkdir":
+        if args.count < 5 {
+            print("Usage: swiftmtp-cli mkdir <deviceId> <storageId> <remotePath>")
+            exit(1)
+        }
+        
+        let deviceId = args[2]
+        let storageId = Int(args[3]) ?? 0
+        let path = args[4]
+        
+        let components = path.components(separatedBy: "/")
+        let newName = components.last ?? ""
+        if newName.isEmpty {
+            print("mkdir: directory name cannot be empty")
+            exit(1)
+        }
+        
+        if !CLIMTPClient.initialize(deviceId: deviceId) { exit(1) }
+        
+        var parentPath = String(path.prefix(upTo: path.lastIndex(of: "/") ?? path.endIndex))
+        if parentPath.isEmpty { parentPath = "/" }
+        
+        guard let files = CLIMTPClient.walk(deviceId: deviceId, storageId: storageId, path: parentPath) else {
+            print("mkdir: parent directory '\(parentPath)' does not exist")
+            CLIMTPClient.dispose(deviceId: deviceId)
+            exit(1)
+        }
+        
+        if files.contains(where: { $0.name == newName }) {
+            print("mkdir: a file or directory named '\(newName)' already exists")
+            CLIMTPClient.dispose(deviceId: deviceId)
+            exit(1)
+        }
+        
+        print("Creating directory '\(path)'...")
+        if CLIMTPClient.mkdir(deviceId: deviceId, storageId: storageId, path: path) {
+            print("Created.")
+        } else {
+            print("Failed to create directory.")
+        }
+        CLIMTPClient.dispose(deviceId: deviceId)
+        
+    case "info":
+        if args.count < 4 {
+            print("Usage: swiftmtp-cli info <deviceId> <storageId>")
+            exit(1)
+        }
+        
+        let deviceId = args[2]
+        let storageId = Int(args[3]) ?? 0
+        
+        guard let devices = CLIMTPClient.fetchDevices(),
+              let device = devices.first(where: { $0.id == deviceId }) else {
+            print("Failed to fetch device info.")
+            exit(1)
+        }
+        
+        let usbMonitor = CLIUSBMonitor()
+        let usbResult = usbMonitor.detectCurrentUSBProtocol(productHint: device.model, manufacturerHint: device.manufacturer)
+        
+        print("""
+        Device Information
+        ------------------
+        Manufacturer: \(device.manufacturer.isEmpty ? "-" : device.manufacturer)
+        Device Model: \(device.model)
+        Protocol:     \(usbResult.protocolName) (\(usbResult.speedMbps) Mbps)
+        """)
+        
+        if let storages = CLIMTPClient.fetchStorages(deviceId: deviceId),
+           let storage = storages.first(where: { Int($0.id) == storageId }) {
+            print("Storage:      \(storage.name)")
+            print("Free Space:   \(storage.freeSpace)")
+            print("Total Space:  \(storage.totalSpace)")
+        }
         
     case "shell":
         if args.count < 4 {
