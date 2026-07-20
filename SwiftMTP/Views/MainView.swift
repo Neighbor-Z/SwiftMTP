@@ -212,6 +212,11 @@ struct MainView: View {
                 handleExport(destinationURL: destinationURL, files: selectedFiles)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SwiftMTPDeleteAction"))) { _ in
+            if !selectedFiles.isEmpty {
+                isShowingDeleteConfirmation = true
+            }
+        }
         .focusedSceneValue(\.isConnected, manager.connectionState.isConnected)
         .focusedSceneValue(\.canGoBack, manager.canGoBack)
         .focusedSceneValue(\.isTransferActive, manager.isTransferActive)

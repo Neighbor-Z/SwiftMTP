@@ -200,6 +200,9 @@ struct FileListView: View {
                 onExportSelected: { selectedFiles in
                     handleExportRequest(selectedFiles)
                 },
+                onDeleteSelected: { _ in
+                    NotificationCenter.default.post(name: NSNotification.Name("SwiftMTPDeleteAction"), object: nil)
+                },
                 onDropExternalFiles: { droppedURLs in
                     handleImportRequest(droppedURLs)
                 },
@@ -301,6 +304,7 @@ private struct FileListTableRepresentable: NSViewRepresentable {
     let onNewFolder: () -> Void
     let onOpenSelected: (MTPFile) -> Void
     let onExportSelected: ([MTPFile]) -> Void
+    let onDeleteSelected: ([MTPFile]) -> Void
     let onDropExternalFiles: ([URL]) -> Void
     let onRename: (MTPFile) -> Void
     let onAddToFavorites: ((MTPFile) -> Void)?
@@ -676,6 +680,10 @@ private struct FileListTableRepresentable: NSViewRepresentable {
                 exportItem.target = self
                 menu.addItem(exportItem)
 
+                let deleteItem = NSMenuItem(title: String(localized: "Delete"), action: #selector(handleDeleteSelected), keyEquivalent: "")
+                deleteItem.target = self
+                menu.addItem(deleteItem)
+
                 // Add to Favorites – only for a single selected folder
                 if selectedFiles.count == 1, let first = selectedFiles.first, first.isDirectory,
                    parent.onAddToFavorites != nil {
@@ -776,6 +784,12 @@ private struct FileListTableRepresentable: NSViewRepresentable {
             let selectedFiles = selectedContextFiles
             guard !selectedFiles.isEmpty else { return }
             parent.onExportSelected(selectedFiles)
+        }
+
+        @objc private func handleDeleteSelected() {
+            let selectedFiles = selectedContextFiles
+            guard !selectedFiles.isEmpty else { return }
+            parent.onDeleteSelected(selectedFiles)
         }
 
         @objc private func handleAddToFavorites() {
