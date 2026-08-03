@@ -1,5 +1,7 @@
 import Foundation
 import Combine
+import AppKit
+import UserNotifications
 
 /// Manages MTP device communication.
 final class MTPManager: ObservableObject {
@@ -477,6 +479,7 @@ final class MTPManager: ObservableObject {
                 return
             }
             
+            let completedOp = operation
             self.finishTransferCompletion(errorString: nil)
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -484,6 +487,18 @@ final class MTPManager: ObservableObject {
                 self.transferProgress = nil
                 self.transferStats = nil
                 self.loadFiles(at: self.currentPath)
+                
+                if !NSApplication.shared.isActive {
+                    let content = UNMutableNotificationContent()
+                    content.title = String(localized: "Transfer Complete")
+                    content.body = completedOp == .uploading ? String(localized: "Import completed successfully.") : String(localized: "Export completed successfully.")
+                    let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+                    UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, _ in
+                        if granted {
+                            UNUserNotificationCenter.current().add(request)
+                        }
+                    }
+                }
             }
             
         case .disposing:
