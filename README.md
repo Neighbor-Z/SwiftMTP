@@ -72,11 +72,10 @@ SwiftMTP/
 │   ├── SwiftMTPApp.swift     # Entry point
 │   ├── Views/                # SwiftUI UI Layer
 │   ├── Models/               # Data models
-│   └── Services/             # KalamMTPManager (Connection & Transfer logic)
-├──KalamShim/                # C shim bridging Swift and the MTP kernel
-├──ffi/                      # Kalam backend source
-├──CKalam/                   # Module map for C headers
-└──lib/                      # Runtime dependencies (kalam.dylib, libusb.dylib)
+│   └── Services/             # Connection & Transfer logic
+├──GomtpShim/                # C shim bridging Swift and the MTP kernel
+├──lib/                      # Runtime dependencies (gomtp.dylib, libusb.dylib)
+└──swiftmtp-cli/             # cli files
 ```
 
 ---
@@ -99,8 +98,7 @@ brew tap neighbor-z/swiftmtp && brew install --cask swiftmtp
 * **macOS 12.0+**
 
 #### Build & Run
-1.  ~~Please build backend first. Refer to `ffi/kalam/native/README.md`. This step will build necessary dynamic libraries (`kalam.dylib` & `libusb.dylib`) and will place them under `lib`.~~ Pre-compiled dylibs have been added. You can also compile them by yourself.
-2.  Open `SwiftMTP.xcodeproj` in Xcode.
+1.  Open `SwiftMTP.xcodeproj` in Xcode.
 3.  Select your target platform (macOS).
 4.  Press Run.
 

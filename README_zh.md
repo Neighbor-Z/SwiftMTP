@@ -100,11 +100,10 @@ SwiftMTP/
 │   ├── App/             # 应用入口 (SwiftMTPApp.swift)
 │   ├── Views/           # SwiftUI 视图组件
 │   ├── Models/          # 数据模型
-│   └── Services/        # 核心逻辑 (KalamMTPManager.swift)
-├──KalamShim/            # C 语言桥接层 (Bridging Swift & MTP Kernel)
-├──ffi/                  # Kalam 后端代码
-├──CKalam/               # 模块映射定义 (module.modulemap)
-└──lib/                  # 运行时依赖 (kalam.dylib, libusb.dylib)
+│   └── Services/        # 核心逻辑
+├──GomtpShim/            # C 语言桥接层 (Bridging Swift & MTP Kernel)            
+├──lib/                  # 运行时依赖 (gomtp.dylib, libusb.dylib)
+└──swiftmtp-cli/         # cli 相关
 ````
 
 -----
@@ -128,8 +127,7 @@ brew tap neighbor-z/swiftmtp && brew install --cask swiftmtp
 
 #### 步骤
 
-1.  ~~请先编译后端，参阅 `ffi/kalam/native/README.md` 。这会得到必要的动态库 (`kalam.dylib` & `libusb.dylib` ) 和 `kalam.h` 放置于 `lib`~~ 预编译的 dylib 已添加。也可以自行编译这些 dylib。
-2.  打开 `SwiftMTP.xcodeproj`
+1.  打开 `SwiftMTP.xcodeproj`
 3.  选择目标平台（macOS）
 4.  点击 **Run**
 
