@@ -10,6 +10,8 @@
 <a href="https://neighbor-z.github.io/swiftmtp-website">网页</a> ·
 <a href="https://github.com/Neighbor-Z/SwiftMTP/releases">Releases</a>
 </p>
+<div align="center">[![在 Mac App Store 下载](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Download_on_the_App_Store_Badge_CNSC_RGB_blk_092917.svg)](https://apps.apple.com/cn/app/swiftmtp/id6802688224)</div>
+
 
 [![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-orange.svg?style=flat)](https://github.com/Neighbor-Z/SwiftMTP/)[![Platform: macOS 12.0+](https://img.shields.io/badge/Platform-macOS%2012.0%2B-blue.svg?style=flat)](https://github.com/Neighbor-Z/SwiftMTP/releases/latest)[![License: GPL](https://img.shields.io/badge/License-GPL-green.svg)](https://github.com/Neighbor-Z/SwiftMTP/blob/main/LICENSE)
 
