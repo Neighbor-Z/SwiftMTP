@@ -1,11 +1,15 @@
 import SwiftUI
+import AppKit
 
 @main
 struct SwiftMTPApp: App {
     init() {
         NSWindow.allowsAutomaticWindowTabbing = false
     }
-    
+
+    @StateObject private var windowManager = WindowManager.shared
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     @FocusedValue(\.isConnected) var isConnected
     @FocusedValue(\.isTransferActive) var isTransferActive
     @FocusedValue(\.isSelectedFilesEmpty) var isSelectedFilesEmpty
@@ -25,7 +29,6 @@ struct SwiftMTPApp: App {
             MainView()
         }
         .commands {
-            CommandGroup(replacing: .newItem) {}
             CommandGroup(after: .newItem) {
                 Button { showNewFolderAction?() } label: { Label("New Folder", systemImage: "folder.badge.plus") }
                     .keyboardShortcut("n", modifiers: [.command, .shift])
@@ -41,6 +44,7 @@ struct SwiftMTPApp: App {
                 Button { showDeleteConfirmationAction?() } label: { Label("Delete", systemImage: "trash") }
                     .keyboardShortcut(.delete, modifiers: [.command])
                     .disabled(isConnected != true || isTransferActive == true || isSelectedFilesEmpty == true)
+                    .labelStyle(.titleAndIcon)
                 
                 Divider()
                 
@@ -48,23 +52,28 @@ struct SwiftMTPApp: App {
                     Button { disconnectDeviceAction?() } label: { Label("Disconnect Device", systemImage: "cable.connector.slash") }
                         .keyboardShortcut("e", modifiers: [.command])
                         .disabled(isTransferActive == true)
+                        .labelStyle(.titleAndIcon)
                 } else {
                     Button { connectDeviceAction?() } label: { Label("Connect Device", systemImage: "cable.connector") }
                         .keyboardShortcut("k", modifiers: [.command])
                         .disabled(isConnected == true)
+                        .labelStyle(.titleAndIcon)
                 }
                 Button { showDeviceInfoAction?() } label: { Label("Device Info", systemImage: "info.circle") }
                     .keyboardShortcut("i", modifiers: [.command])
                     .disabled(isConnected != true || isTransferActive == true)
+                    .labelStyle(.titleAndIcon)
                 
                 Divider()
                 
                 Button { handleImportAction() } label: { Label("Import", systemImage: "iphone.and.arrow.forward.inward") }
                     .keyboardShortcut("i", modifiers: [.command, .shift])
                     .disabled(isConnected != true || isTransferActive == true)
+                    .labelStyle(.titleAndIcon)
                 Button { handleExportAction() } label: { Label("Export", systemImage: "iphone.and.arrow.forward.outward") }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
                     .disabled(isConnected != true || isTransferActive == true || isSelectedFilesEmpty == true)
+                    .labelStyle(.titleAndIcon)
                 
                 Divider()
                 
@@ -185,9 +194,11 @@ struct GoMenuCommands: Commands {
             
             Button { navigateToPathAction?("/DCIM") } label: { Label("Photos", systemImage: "photo.on.rectangle") }
                 .disabled(isConnected != true)
+                .labelStyle(.titleAndIcon)
             Button { navigateToPathAction?("/Download") } label: { Label("Downloads", systemImage: "arrow.down.circle") }
                 .keyboardShortcut("l", modifiers: [.command, .option])
                 .disabled(isConnected != true)
+                .labelStyle(.titleAndIcon)
                 
             Divider()
             
@@ -284,5 +295,97 @@ extension FocusedValues {
     var quickLookAction: (() -> Void)? {
         get { self[QuickLookActionFocusedKey.self] }
         set { self[QuickLookActionFocusedKey.self] = newValue }
+    }
+}
+
+class WindowManager: ObservableObject {
+    @Published var hasWindowOpen: Bool = false
+    static let shared = WindowManager()
+    
+    private var observers: [Any] = []
+    
+    init() {
+        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.updateWindowState()
+            }
+        })
+        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.updateWindowState()
+            }
+        })
+        
+        DispatchQueue.main.async {
+            self.updateWindowState()
+        }
+    }
+    
+    deinit {
+        for observer in observers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+    
+    func updateWindowState() {
+        // Count visible windows, excluding the status bar, settings window, or other internal windows
+        let count = NSApplication.shared.windows.filter { window in
+            guard window.isVisible else { return false }
+            if window.className == "NSStatusBarWindow" { return false }
+            if window.identifier?.rawValue == "com_apple_SwiftUI_Settings_window" { return false }
+            return true
+        }.count
+        let hasWindow = count > 0
+        if self.hasWindowOpen != hasWindow {
+            self.hasWindowOpen = hasWindow
+        }
+    }
+}
+
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
+    var originalAction: Selector?
+    var originalTarget: AnyObject?
+    
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        DispatchQueue.main.async {
+            var newItem: NSMenuItem?
+            if let mainMenu = NSApp.mainMenu {
+                for menu in mainMenu.items {
+                    if let submenu = menu.submenu {
+                        if let item = submenu.items.first(where: { 
+                            $0.keyEquivalent.lowercased() == "n" && 
+                            $0.keyEquivalentModifierMask.contains(.command) && 
+                            !$0.keyEquivalentModifierMask.contains(.shift) && 
+                            !$0.keyEquivalentModifierMask.contains(.option) && 
+                            !$0.keyEquivalentModifierMask.contains(.control) 
+                        }) {
+                            newItem = item
+                            break
+                        }
+                    }
+                }
+            }
+            
+            guard let item = newItem else { return }
+            
+            self.originalAction = item.action
+            self.originalTarget = item.target
+            
+            item.target = self
+            item.action = #selector(self.newWindowAction(_:))
+        }
+    }
+    
+    @objc func newWindowAction(_ sender: Any) {
+        if let action = originalAction, let target = originalTarget {
+            NSApp.sendAction(action, to: target, from: sender)
+        }
+    }
+    
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(newWindowAction(_:)) {
+            return !WindowManager.shared.hasWindowOpen
+        }
+        return true
     }
 }
