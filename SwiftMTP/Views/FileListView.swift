@@ -1163,6 +1163,19 @@ private struct FileListTableRepresentable: NSViewRepresentable {
             guard let tableView else { return .zero }
             let selectedRow = tableView.selectedRow
             guard selectedRow >= 0 else { return .zero }
+
+            // Find the name column and its cell view to get the icon frame
+            let nameColumnID = NSUserInterfaceItemIdentifier(FileListColumn.name.rawValue)
+            if let nameColumnIndex = tableView.tableColumns.firstIndex(where: { $0.identifier == nameColumnID }),
+               let cellView = tableView.view(atColumn: nameColumnIndex, row: selectedRow, makeIfNecessary: false) as? NSTableCellView,
+               let iconView = cellView.imageView {
+                // Convert the icon's bounds to the tableView's coordinate system, then to screen
+                let iconRectInTable = iconView.convert(iconView.bounds, to: tableView)
+                let windowRect = tableView.convert(iconRectInTable, to: nil)
+                return tableView.window?.convertToScreen(windowRect) ?? .zero
+            }
+
+            // Fallback: use the entire row rect
             let rowRect = tableView.rect(ofRow: selectedRow)
             let windowRect = tableView.convert(rowRect, to: nil)
             return tableView.window?.convertToScreen(windowRect) ?? .zero
