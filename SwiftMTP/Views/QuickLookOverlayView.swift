@@ -78,6 +78,13 @@ struct QuickLookOverlayView: View {
                             .buttonStyle(.borderedProminent)
                             .controlSize(.large)
                             .padding(.top, 5)
+                            .onHover { isHovering in
+                                if isHovering {
+                                    NSCursor.pointingHand.push()
+                                } else {
+                                    NSCursor.pop()
+                                }
+                            }
                             
                             Text(String(localized: "Loading a large file preview may take some time and cannot be canceled."))
                             .font(.system(size: 11))
