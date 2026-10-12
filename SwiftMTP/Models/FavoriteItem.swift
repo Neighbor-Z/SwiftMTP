@@ -34,20 +34,5 @@ struct FavoriteItem: Identifiable, Codable, Equatable, Hashable {
         )
     ]
     
-    static let defaultUserFavorites: [FavoriteItem] = [
-        FavoriteItem(
-            id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
-            name: "Bluetooth",
-            path: "/bluetooth",
-            icon: "wave.3.right",
-            isBuiltIn: false
-        ),
-        FavoriteItem(
-            id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!,
-            name: "Screenshots",
-            path: "/Pictures/Screenshots",
-            icon: "camera.viewfinder",
-            isBuiltIn: false
-        )
-    ]
+    static let defaultUserFavorites: [FavoriteItem] = []
 }
