@@ -992,7 +992,7 @@ func printUsage() {
 }
 
 func printVersion() {
-    print("SwiftMTP App    v1.2.4")
+    print("SwiftMTP App    v1.3.0")
     print("swiftmtp-cli    v0.1.2")
     
     var sysinfo = utsname()

@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage("fileListFontSize") private var fileListFontSize: Int = 12
     @AppStorage("doubleClickToOpenFile") private var doubleClickToOpenFile: Bool = true
+    @AppStorage("fileIconSize") private var fileIconSizeRaw: String = FileIconSize.medium.rawValue
     @AppStorage("aiMode") private var aiMode: String = "none"
     @AppStorage("aiApiUrl") private var aiApiUrl: String = ""
     @AppStorage("aiModelName") private var aiModelName: String = ""
@@ -47,6 +48,15 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
                     .frame(maxWidth: 300)
+
+                    Picker(String(localized: "Icon Size"), selection: $fileIconSizeRaw) {
+                        Text(String(localized: "Small")).tag(FileIconSize.small.rawValue)
+                        Text(String(localized: "Medium")).tag(FileIconSize.medium.rawValue)
+                        Text(String(localized: "Large")).tag(FileIconSize.large.rawValue)
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 300)
+                    .help(String(localized: "Icon size used in the icon view.", comment: "Tooltip for icon size setting"))
 
                     HStack {
                         Text(String(localized: "List Action"))

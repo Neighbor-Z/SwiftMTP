@@ -30,6 +30,9 @@ struct MainView: View {
     @State private var aiHelpResult: String?
     @State private var isAIProcessing = false
 
+    @EnvironmentObject private var viewModeSettings: ViewModeSettings
+    private var viewMode: FileBrowserViewMode { FileBrowserViewMode(rawValue: viewModeSettings.viewModeRaw) ?? .list }
+
     var selectedFiles: [MTPFile] {
         manager.sortedFiles.filter { selection.contains($0.id) }
     }
@@ -260,23 +263,27 @@ struct MainView: View {
                     )
                     .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 280)
                 } detail: {
-                    fileBrowserView
-                        .searchable(text: $searchQuery, placement: .toolbar, prompt: Text("Search")) {
-                            Button {
-                                isShowingAISearch = true
-                            } label: {
-                                Label("Search with AI", systemImage: "sparkles")
+                    GeometryReader { geometry in
+                        fileBrowserView(safeAreaInsets: geometry.safeAreaInsets)
+                            .searchable(text: $searchQuery, placement: .toolbar, prompt: Text("Search")) {
+                                Button {
+                                    isShowingAISearch = true
+                                } label: {
+                                    Label("Search with AI", systemImage: "sparkles")
+                                }
+                                .disabled(aiNLSearch.isProcessing)
                             }
-                            .disabled(aiNLSearch.isProcessing)
-                        }
-                        .safeAreaInset(edge: .top, spacing: 0) {
-                            if manager.connectionState.isConnected {
-                                pathBar
+                            .safeAreaInset(edge: .top, spacing: 0) {
+                                if manager.connectionState.isConnected {
+                                    pathBar(safeAreaInsets: geometry.safeAreaInsets)
+                                        .padding(.top, geometry.safeAreaInsets.top)
+                                }
                             }
-                        }
-                        .safeAreaInset(edge: .bottom, spacing: 0) {
-                            statusBar
-                        }
+                            .safeAreaInset(edge: .bottom, spacing: 0) {
+                                statusBar(safeAreaInsets: geometry.safeAreaInsets)
+                            }
+                            .ignoresSafeArea(.all)
+                    }
                 }
             } else {
                 NavigationView {
@@ -290,12 +297,10 @@ struct MainView: View {
                         }
                     )
                     .frame(minWidth: 200, idealWidth: 230, maxWidth: 280)
-                    
-                    VStack(spacing: 0) {
-                        if manager.connectionState.isConnected {
-                            pathBar
-                        }
-                        fileBrowserView
+
+                    GeometryReader { geometry in
+                        fileBrowserView(safeAreaInsets: geometry.safeAreaInsets)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .searchable(text: $searchQuery, placement: .toolbar, prompt: Text("Search")) {
                                 Button {
                                     isShowingAISearch = true
@@ -304,7 +309,16 @@ struct MainView: View {
                                 }
                                 .disabled(aiNLSearch.isProcessing)
                             }
-                        statusBar
+                            .safeAreaInset(edge: .top, spacing: 0) {
+                                if manager.connectionState.isConnected {
+                                    pathBar(safeAreaInsets: geometry.safeAreaInsets)
+                                        .padding(.top, geometry.safeAreaInsets.top)
+                                }
+                            }
+                            .safeAreaInset(edge: .bottom, spacing: 0) {
+                                statusBar(safeAreaInsets: geometry.safeAreaInsets)
+                            }
+                            .ignoresSafeArea(.all)
                     }
                 }
             }
@@ -312,26 +326,66 @@ struct MainView: View {
     }
     
     @ViewBuilder
-    private var fileBrowserView: some View {
-        FileListView(
-            manager: manager,
-            selection: $selection,
-            onDoubleClick: { file in
-                if file.isDirectory { manager.navigate(to: file) }
-            },
-            onAddToFavorites: { file in
-                let fullPath = file.path
-                favoritesManager.addFavorite(name: file.name, path: fullPath)
-            },
-            isPathFavorited: { path in
-                favoritesManager.contains(path: path)
-            }
-        )
+    private func fileBrowserView(safeAreaInsets: EdgeInsets) -> some View {
+        if viewMode == .icons {
+            FileIconView(
+                manager: manager,
+                selection: $selection,
+                onDoubleClick: { file in
+                    if file.isDirectory { manager.navigate(to: file) }
+                },
+                onAddToFavorites: { file in
+                    let fullPath = file.path
+                    favoritesManager.addFavorite(name: file.name, path: fullPath)
+                },
+                isPathFavorited: { path in
+                    favoritesManager.contains(path: path)
+                },
+                safeAreaInsets: safeAreaInsets
+            )
+        } else if viewMode == .gallery {
+            FileGalleryView(
+                manager: manager,
+                selection: $selection,
+                onDoubleClick: { file in
+                    if file.isDirectory { manager.navigate(to: file) }
+                },
+                onAddToFavorites: { file in
+                    let fullPath = file.path
+                    favoritesManager.addFavorite(name: file.name, path: fullPath)
+                },
+                isPathFavorited: { path in
+                    favoritesManager.contains(path: path)
+                },
+                safeAreaInsets: safeAreaInsets
+            )
+        } else {
+            FileListView(
+                manager: manager,
+                selection: $selection,
+                onDoubleClick: { file in
+                    if file.isDirectory { manager.navigate(to: file) }
+                },
+                onAddToFavorites: { file in
+                    let fullPath = file.path
+                    favoritesManager.addFavorite(name: file.name, path: fullPath)
+                },
+                isPathFavorited: { path in
+                    favoritesManager.contains(path: path)
+                },
+                safeAreaInsets: safeAreaInsets
+            )
+        }
     }
 
     // MARK: – Path Bar
-    private var pathBar: some View {
+    private func pathBar(safeAreaInsets: EdgeInsets) -> some View {
         HStack(spacing: 6) {
+            if #available(macOS 26.0, *) {
+                Spacer()
+                    .frame(width: safeAreaInsets.leading)
+            }
+            
             Button {
                 manager.navigateBack()
             } label: {
@@ -357,7 +411,9 @@ struct MainView: View {
         .padding(.vertical, 6)
         .background(
             Group {
-                if #available(macOS 13.0, *) {
+                if #available(macOS 26.0, *) {
+                    Color.clear.background(.ultraThinMaterial)
+                } else if #available(macOS 13.0, *) {
                     Color.clear.background(.bar)
                 } else {
                     Color(nsColor: .windowBackgroundColor)
@@ -370,10 +426,15 @@ struct MainView: View {
     }
 
     // MARK: – Status Bar
-    private var statusBar: some View {
+    private func statusBar(safeAreaInsets: EdgeInsets) -> some View {
         VStack(spacing: 0) {
             Divider()
             HStack {
+                if #available(macOS 26.0, *) {
+                    Spacer()
+                        .frame(width: safeAreaInsets.leading)
+                }
+                
                 Text(statusText)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -400,7 +461,9 @@ struct MainView: View {
         }
         .background(
             Group {
-                if #available(macOS 13.0, *) {
+                if #available(macOS 26.0, *) {
+                    Color.clear.background(.ultraThinMaterial)
+                } else if #available(macOS 13.0, *) {
                     Color.clear.background(.bar)
                 } else {
                     Color(nsColor: .windowBackgroundColor)
@@ -447,6 +510,7 @@ struct MainView: View {
     private var toolbarContent: some ToolbarContent {
         // Left: connection button
         ToolbarItemGroup(placement: .navigation) {
+            // Dedicated side bar button for macOS 12
             if #unavailable(macOS 13.0) {
                 Button {
                     NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSSplitViewController.toggleSidebar(_:)), with: nil)
@@ -476,6 +540,19 @@ struct MainView: View {
 
         // Right: file actions
         ToolbarItemGroup(placement: .primaryAction) {
+            // View Mode
+            Picker("", selection: $viewModeSettings.viewModeRaw) {
+                Label(String(localized: "as Icons"), systemImage: "square.grid.2x2").tag(FileBrowserViewMode.icons.rawValue)
+                Label(String(localized: "as List"), systemImage: "list.bullet").tag(FileBrowserViewMode.list.rawValue)
+                Label(String(localized: "as Gallery"), systemImage: "squares.below.rectangle").tag(FileBrowserViewMode.gallery.rawValue)
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 50)
+            .help(String(localized: "Change View"))
+
+            Spacer(minLength: 12)
+
             // Import
             Button {
                 let panel = NSOpenPanel()
@@ -933,23 +1010,31 @@ private struct TransferOverlay: View {
 }
 
 #Preview("中文") {
+    let viewModeSettings = ViewModeSettings()
     MainView()
         .environment(\.locale, Locale(identifier: "zh-Hans"))
+        .environmentObject(viewModeSettings)
 }
 
 #Preview("English") {
+    let viewModeSettings = ViewModeSettings()
     MainView()
         .environment(\.locale, Locale(identifier: "en"))
+        .environmentObject(viewModeSettings)
 }
 
 #Preview("日本語") {
+    let viewModeSettings = ViewModeSettings()
     MainView()
         .environment(\.locale, Locale(identifier: "ja"))
+        .environmentObject(viewModeSettings)
 }
 
 #Preview("Espanal") {
+    let viewModeSettings = ViewModeSettings()
     MainView()
         .environment(\.locale, Locale(identifier: "es"))
+        .environmentObject(viewModeSettings)
 }
 
 #Preview("TransferOverlay") {
@@ -984,6 +1069,10 @@ private struct TransferOverlay: View {
         state: .loading,
         onLoadPreview: {}
     )
+}
+
+#Preview("Settings") {
+    SettingsView()
 }
 
 #Preview("AI Disclaimer") {

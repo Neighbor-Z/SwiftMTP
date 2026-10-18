@@ -3,12 +3,14 @@ import AppKit
 
 @main
 struct SwiftMTPApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     init() {
         NSWindow.allowsAutomaticWindowTabbing = false
     }
 
+    @StateObject private var viewModeSettings = ViewModeSettings()
     @StateObject private var windowManager = WindowManager.shared
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     @FocusedValue(\.isConnected) var isConnected
     @FocusedValue(\.isTransferActive) var isTransferActive
@@ -27,6 +29,7 @@ struct SwiftMTPApp: App {
     var body: some Scene {
         WindowGroup {
             MainView()
+                .environmentObject(viewModeSettings)
         }
         .commands {
             CommandGroup(after: .newItem) {
@@ -89,6 +92,37 @@ struct SwiftMTPApp: App {
             GoMenuCommands()
             
             SidebarCommands()
+
+            CommandGroup(before: .toolbar) {
+                Toggle(isOn: Binding(
+                    get: { viewModeSettings.viewModeRaw == FileBrowserViewMode.icons.rawValue },
+                    set: { if $0 { viewModeSettings.viewModeRaw = FileBrowserViewMode.icons.rawValue } }
+                )) {
+                    Label(String(localized: "as Icons"), systemImage: "square.grid.2x2")
+                        .labelStyle(.titleAndIcon)
+                }
+                .keyboardShortcut("1", modifiers: .command)
+
+                Toggle(isOn: Binding(
+                    get: { viewModeSettings.viewModeRaw == FileBrowserViewMode.list.rawValue },
+                    set: { if $0 { viewModeSettings.viewModeRaw = FileBrowserViewMode.list.rawValue } }
+                )) {
+                    Label(String(localized: "as List"), systemImage: "list.bullet")
+                        .labelStyle(.titleAndIcon)
+                }
+                .keyboardShortcut("2", modifiers: .command)
+
+                Toggle(isOn: Binding(
+                    get: { viewModeSettings.viewModeRaw == FileBrowserViewMode.gallery.rawValue },
+                    set: { if $0 { viewModeSettings.viewModeRaw = FileBrowserViewMode.gallery.rawValue } }
+                )) {
+                    Label(String(localized: "as Gallery"), systemImage: "squares.below.rectangle")
+                        .labelStyle(.titleAndIcon)
+                }
+                .keyboardShortcut("4", modifiers: .command)
+
+                Divider()
+            }
         }
         //.defaultSize(width: 900, height: 600)
         

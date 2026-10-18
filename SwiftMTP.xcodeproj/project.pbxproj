@@ -35,6 +35,9 @@
 		C7B754572F8A21C70075406B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7B754562F8A21C70075406B /* Assets.xcassets */; };
 		C7C4AFF32F83B37E0047364C /* MTPDeviceInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C4AFF22F83B37E0047364C /* MTPDeviceInfo.swift */; };
 		C7C839F62FADC6F700A40C35 /* AINLSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C839F52FADC6F700A40C35 /* AINLSearch.swift */; };
+		C7C8859F305A9D4F0090BFBE /* FileViewShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C8859E305A9D4F0090BFBE /* FileViewShared.swift */; };
+		C7C885A0305A9D4F0090BFBE /* FileGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C8859C305A9D4F0090BFBE /* FileGalleryView.swift */; };
+		C7C885A1305A9D4F0090BFBE /* FileIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C8859D305A9D4F0090BFBE /* FileIconView.swift */; };
 		C7E5F65E2F78FF56004B6939 /* MTPIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = C7A475DB2F78E957005EDC2E /* MTPIcon.icon */; };
 		C7FB2E5E2F7A6F6C0036FE3B /* TransferStatistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7FB2E5D2F7A6F6C0036FE3B /* TransferStatistics.swift */; };
 /* End PBXBuildFile section */
@@ -103,6 +106,9 @@
 		C7B754562F8A21C70075406B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C7C4AFF22F83B37E0047364C /* MTPDeviceInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MTPDeviceInfo.swift; path = SwiftMTP/Models/MTPDeviceInfo.swift; sourceTree = "<group>"; };
 		C7C839F52FADC6F700A40C35 /* AINLSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AINLSearch.swift; path = SwiftMTP/Services/AINLSearch.swift; sourceTree = "<group>"; };
+		C7C8859C305A9D4F0090BFBE /* FileGalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FileGalleryView.swift; path = SwiftMTP/Views/FileGalleryView.swift; sourceTree = "<group>"; };
+		C7C8859D305A9D4F0090BFBE /* FileIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FileIconView.swift; path = SwiftMTP/Views/FileIconView.swift; sourceTree = "<group>"; };
+		C7C8859E305A9D4F0090BFBE /* FileViewShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FileViewShared.swift; path = SwiftMTP/Views/FileViewShared.swift; sourceTree = "<group>"; };
 		C7FB2E5D2F7A6F6C0036FE3B /* TransferStatistics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TransferStatistics.swift; path = SwiftMTP/Models/TransferStatistics.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -180,6 +186,9 @@
 		1A2B3C4D5E6F7A8000000320 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				C7C8859C305A9D4F0090BFBE /* FileGalleryView.swift */,
+				C7C8859D305A9D4F0090BFBE /* FileIconView.swift */,
+				C7C8859E305A9D4F0090BFBE /* FileViewShared.swift */,
 				C7B754542F8A219B0075406B /* SettingsView.swift */,
 				C72F6C232F87DFF10015604B /* QuickLookOverlayView.swift */,
 				C7516A782F800928006B1603 /* SidebarView.swift */,
@@ -365,6 +374,9 @@
 				C7516A722F8008D9006B1603 /* MTPManager.swift in Sources */,
 				C7C839F62FADC6F700A40C35 /* AINLSearch.swift in Sources */,
 				C75229252FACFB330044B6AB /* AIManager.swift in Sources */,
+				C7C8859F305A9D4F0090BFBE /* FileViewShared.swift in Sources */,
+				C7C885A0305A9D4F0090BFBE /* FileGalleryView.swift in Sources */,
+				C7C885A1305A9D4F0090BFBE /* FileIconView.swift in Sources */,
 				C7516A732F8008D9006B1603 /* USBMonitor.swift in Sources */,
 				1A2B3C4D5E6F7A8000000012 /* Localizable.xcstrings in Sources */,
 				C705622E2F875E6E0055C8BE /* FavoritesManager.swift in Sources */,
@@ -410,7 +422,7 @@
 				CODE_SIGN_ENTITLEMENTS = SwiftMTP/SwiftMTP.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 10;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -431,7 +443,7 @@
 					"$(PROJECT_DIR)/lib",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 1.2.5;
+				MARKETING_VERSION = 1.3.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"$(SRCROOT)/lib/gomtp.dylib",
@@ -459,7 +471,7 @@
 				CODE_SIGN_ENTITLEMENTS = SwiftMTP/SwiftMTP.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 10;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -480,7 +492,7 @@
 					"$(PROJECT_DIR)/lib",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 1.2.5;
+				MARKETING_VERSION = 1.3.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"$(SRCROOT)/lib/gomtp.dylib",
