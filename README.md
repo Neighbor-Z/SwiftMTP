@@ -28,18 +28,32 @@ Inspired by [OpenMTP](https://github.com/ganeshrvel/openmtp/), SwiftMTP uses the
 
 ## News
 
-<details>
+<details open>
 
 <summary>
     
 ### Upcoming
 </summary>
 
-Stay tuned...
+#### Multiple views
+
+Introducing Gallery View and Icon View.
+
+| Gallery View                                     | Icon View                                    |
+| ------------------------------------------------ | -------------------------------------------- |
+| ![Gallery View](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Gallery_View.png) | ![Icon View](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Icon_View.png) |
+
+#### Share Extension
+
+Introducing Share Extension. It allows you to send documents or media straight to your devices through SwiftMTP without leaving your desktop or opening the main window. 
+
+<div align="center">
+  <img src="https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Share_Menu.png" width="258" >
+</div>
 
 </details>
 
-<details open>
+<details>
 
 <summary>
     
