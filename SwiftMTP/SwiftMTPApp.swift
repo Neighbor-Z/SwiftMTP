@@ -1,6 +1,116 @@
 import SwiftUI
 import AppKit
 
+/// Owns the original URLs (including their sandbox extensions) until the picker
+/// is cancelled or MTPManager has acquired its own access for the transfer.
+final class ShareRequest: Identifiable {
+    let id = UUID()
+    let urls: [URL]
+    private let scopedURLs: [URL]
+
+    init(urls: [URL]) {
+        self.urls = urls
+        scopedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
+    }
+
+    deinit {
+        scopedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
+    }
+}
+
+/// A queue survives cold launch and periods without a main window. Repeated
+/// shares must not replace the files in an already visible picker.
+final class QuickActionState: ObservableObject {
+    static let shared = QuickActionState()
+    @Published private(set) var requests: [ShareRequest] = []
+
+    func enqueue(_ urls: [URL]) {
+        let files = urls.filter(\.isFileURL)
+        guard !files.isEmpty else { return }
+        requests.append(ShareRequest(urls: files))
+    }
+
+    func takeNext() -> ShareRequest? {
+        guard !requests.isEmpty else { return nil }
+        return requests.removeFirst()
+    }
+}
+
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
+    private var originalNewWindowAction: Selector?
+    private var originalNewWindowTarget: AnyObject?
+    private var originalNewWindowItem: NSMenuItem?
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.servicesProvider = self
+        NSUpdateDynamicServices()
+
+        // Keep SwiftUI's macOS 12-compatible window creation action, but route
+        // every invocation through the single-main-window coordinator.
+        DispatchQueue.main.async {
+            self.installMainWindowAction()
+        }
+    }
+
+    private func installMainWindowAction() {
+        guard let item = NSApp.mainMenu?.items.compactMap(\.submenu)
+            .flatMap(\.items).first(where: {
+                $0.keyEquivalent.lowercased() == "n" &&
+                $0.keyEquivalentModifierMask.intersection([.command, .shift, .option, .control]) == .command
+            }), let action = item.action else { return }
+
+        originalNewWindowAction = action
+        originalNewWindowTarget = item.target
+        originalNewWindowItem = item.copy() as? NSMenuItem
+        item.target = self
+        item.action = #selector(newWindowAction(_:))
+        WindowManager.shared.installCreateWindowAction { [weak self] in
+            guard let self, let action = self.originalNewWindowAction else { return false }
+            // A nil target is valid: AppKit then searches the responder chain.
+            return NSApp.sendAction(action, to: self.originalNewWindowTarget, from: self.originalNewWindowItem)
+        }
+    }
+
+    /// Launch Services delivers these URLs with the user's file access grant.
+    /// Do not convert them to paths and reconstruct URLs before using them.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        receiveSharedFiles(urls)
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        WindowManager.shared.showMainWindow()
+        return false
+    }
+
+    @objc func sendToSwiftMTP(_ pboard: NSPasteboard, userData: String, error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        // readObjects preserves the pasteboard's sandbox access information.
+        let urls = pboard.readObjects(forClasses: [NSURL.self],
+                                     options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        receiveSharedFiles(urls)
+    }
+
+    private func receiveSharedFiles(_ urls: [URL]) {
+        guard urls.contains(where: \.isFileURL) else { return }
+        QuickActionState.shared.enqueue(urls)
+        WindowManager.shared.showMainWindow()
+    }
+
+    @objc func newWindowAction(_ sender: Any) {
+        WindowManager.shared.showMainWindow()
+    }
+    
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(newWindowAction(_:)) {
+            return !WindowManager.shared.hasWindowOpen
+        }
+        return true
+    }
+}
+
 @main
 struct SwiftMTPApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -10,7 +120,6 @@ struct SwiftMTPApp: App {
     }
 
     @StateObject private var viewModeSettings = ViewModeSettings()
-    @StateObject private var windowManager = WindowManager.shared
 
     @FocusedValue(\.isConnected) var isConnected
     @FocusedValue(\.isTransferActive) var isTransferActive
@@ -28,8 +137,7 @@ struct SwiftMTPApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MainView()
-                .environmentObject(viewModeSettings)
+            MainWindowRoot(viewModeSettings: viewModeSettings)
         }
         .commands {
             CommandGroup(after: .newItem) {
@@ -332,94 +440,117 @@ extension FocusedValues {
     }
 }
 
-class WindowManager: ObservableObject {
-    @Published var hasWindowOpen: Bool = false
+/// Tracks the main scene's actual window, including hidden/minimized windows.
+/// Settings, panels and sheets never count as a main window.
+final class WindowManager: ObservableObject {
     static let shared = WindowManager()
-    
-    private var observers: [Any] = []
-    
-    init() {
-        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.updateWindowState()
-            }
-        })
-        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.updateWindowState()
-            }
-        })
-        
-        DispatchQueue.main.async {
-            self.updateWindowState()
-        }
+    @Published private(set) var hasWindowOpen = false
+    private weak var mainWindow: NSWindow?
+    private var mainWindowID: UUID?
+    private var createWindow: (() -> Bool)?
+    private var isCreatingWindow = false
+    private var needsMainWindow = false
+    private var closeObserver: NSObjectProtocol?
+
+    func installCreateWindowAction(_ action: @escaping () -> Bool) {
+        createWindow = action
+        if needsMainWindow { showMainWindow() }
     }
-    
-    deinit {
-        for observer in observers {
-            NotificationCenter.default.removeObserver(observer)
+
+    @discardableResult
+    func register(_ window: NSWindow, id: UUID) -> Bool {
+        if let existing = mainWindow, existing !== window {
+            // Also guard restoration or any system action that bypasses Cmd-N.
+            window.close()
+            showMainWindow()
+            return false
         }
+        guard mainWindow !== window else { return true }
+        mainWindow = window
+        mainWindowID = id
+        hasWindowOpen = true
+        isCreatingWindow = false
+        window.tabbingMode = .disallowed
+        window.isRestorable = false
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.mainWindow = nil
+            self.mainWindowID = nil
+            self.hasWindowOpen = false
+            if let observer = self.closeObserver {
+                NotificationCenter.default.removeObserver(observer)
+                self.closeObserver = nil
+            }
+        }
+        if needsMainWindow { showMainWindow() }
+        return true
     }
-    
-    func updateWindowState() {
-        // Count visible windows, excluding the status bar, settings window, or other internal windows
-        let count = NSApplication.shared.windows.filter { window in
-            guard window.isVisible else { return false }
-            if window.className == "NSStatusBarWindow" { return false }
-            if window.identifier?.rawValue == "com_apple_SwiftUI_Settings_window" { return false }
-            return true
-        }.count
-        let hasWindow = count > 0
-        if self.hasWindowOpen != hasWindow {
-            self.hasWindowOpen = hasWindow
+
+    func isMainWindow(id: UUID?) -> Bool {
+        id != nil && mainWindow != nil && mainWindowID == id
+    }
+
+    func showMainWindow() {
+        needsMainWindow = true
+        if let window = mainWindow {
+            needsMainWindow = false
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
         }
+        guard !isCreatingWindow, let createWindow else { return }
+        isCreatingWindow = true
+        if !createWindow() { isCreatingWindow = false }
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
-    var originalAction: Selector?
-    var originalTarget: AnyObject?
-    
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        DispatchQueue.main.async {
-            var newItem: NSMenuItem?
-            if let mainMenu = NSApp.mainMenu {
-                for menu in mainMenu.items {
-                    if let submenu = menu.submenu {
-                        if let item = submenu.items.first(where: { 
-                            $0.keyEquivalent.lowercased() == "n" && 
-                            $0.keyEquivalentModifierMask.contains(.command) && 
-                            !$0.keyEquivalentModifierMask.contains(.shift) && 
-                            !$0.keyEquivalentModifierMask.contains(.option) && 
-                            !$0.keyEquivalentModifierMask.contains(.control) 
-                        }) {
-                            newItem = item
-                            break
-                        }
-                    }
+/// Only the main scene installs this view; never infer its window by scanning
+/// NSApp.windows for a visible/key window (a sheet or Settings may be key).
+private struct MainWindowRoot: View {
+    let viewModeSettings: ViewModeSettings
+    @State private var windowID = UUID()
+    @State private var isMainWindow = false
+
+    var body: some View {
+        Group {
+            if isMainWindow {
+                MainView(mainWindowID: windowID).environmentObject(viewModeSettings)
+            } else {
+                Color.clear
+            }
+        }
+        .background(MainWindowReader(id: windowID) { isMainWindow = true })
+    }
+}
+
+private struct MainWindowReader: NSViewRepresentable {
+    let id: UUID
+    let onRegister: () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = ReaderView()
+        view.id = id
+        view.onRegister = onRegister
+        return view
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class ReaderView: NSView {
+        var id = UUID()
+        var onRegister: (() -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.window === window else { return }
+                if WindowManager.shared.register(window, id: self.id) {
+                    self.onRegister?()
                 }
             }
-            
-            guard let item = newItem else { return }
-            
-            self.originalAction = item.action
-            self.originalTarget = item.target
-            
-            item.target = self
-            item.action = #selector(self.newWindowAction(_:))
         }
-    }
-    
-    @objc func newWindowAction(_ sender: Any) {
-        if let action = originalAction, let target = originalTarget {
-            NSApp.sendAction(action, to: target, from: sender)
-        }
-    }
-    
-    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(newWindowAction(_:)) {
-            return !WindowManager.shared.hasWindowOpen
-        }
-        return true
     }
 }

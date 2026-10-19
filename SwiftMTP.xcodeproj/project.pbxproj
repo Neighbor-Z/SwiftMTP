@@ -11,6 +11,7 @@
 		1A2B3C4D5E6F7A8000000011 /* lib/libusb.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F7A8000000111 /* lib/libusb.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		1A2B3C4D5E6F7A8000000012 /* Localizable.xcstrings in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F7A8000000130 /* Localizable.xcstrings */; };
 		1A2B3C4D5E6F7A8000000013 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F7A8000000131 /* IOKit.framework */; };
+		1A2B3C4D5E6F7A8000000014 /* ServicesMenu.xcstrings in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F7A8000000132 /* ServicesMenu.xcstrings */; };
 		C705622C2F875E5F0055C8BE /* FavoriteItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C705622B2F875E5F0055C8BE /* FavoriteItem.swift */; };
 		C705622E2F875E6E0055C8BE /* FavoritesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C705622D2F875E6E0055C8BE /* FavoritesManager.swift */; };
 		C717C1E32FDEE45400E667E9 /* GomtpShim.c in Sources */ = {isa = PBXBuildFile; fileRef = C7887B912FD52B81005B5BDD /* GomtpShim.c */; };
@@ -29,6 +30,8 @@
 		C7887B902FD52A96005B5BDD /* gomtp.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = C7887B8F2FD52A96005B5BDD /* gomtp.dylib */; };
 		C7887B922FD52B81005B5BDD /* GomtpShim.c in Sources */ = {isa = PBXBuildFile; fileRef = C7887B912FD52B81005B5BDD /* GomtpShim.c */; };
 		C7887B932FD52B93005B5BDD /* gomtp.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = C7887B8F2FD52A96005B5BDD /* gomtp.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		C7890A033056EE3B00776FD3 /* ShareDestinationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7890A023056EE3B00776FD3 /* ShareDestinationPickerView.swift */; };
+		C7890A143056F29A00776FD3 /* SendToSwiftMTPExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C7890A083056F29A00776FD3 /* SendToSwiftMTPExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C7AC001A2F9A00010055C8BE /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AC00192F9A00010055C8BE /* UpdateChecker.swift */; };
 		C7B582582FE91BC600AD4869 /* swiftmtp-cli in CopyFiles */ = {isa = PBXBuildFile; fileRef = C717C1DA2FDEDFBE00E667E9 /* swiftmtp-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		C7B754552F8A219B0075406B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7B754542F8A219B0075406B /* SettingsView.swift */; };
@@ -43,6 +46,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		C7890A123056F29A00776FD3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1A2B3C4D5E6F7A8000000800 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C7890A073056F29A00776FD3;
+			remoteInfo = SendToSwiftMTPExtension;
+		};
 		C7B582552FE91A0A00AD4869 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 1A2B3C4D5E6F7A8000000800 /* Project object */;
@@ -64,6 +74,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C7890A193056F29A00776FD3 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C7890A143056F29A00776FD3 /* SendToSwiftMTPExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C7B582572FE91BAB00AD4869 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -82,6 +103,7 @@
 		1A2B3C4D5E6F7A8000000120 /* SwiftMTP-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "SwiftMTP-Bridging-Header.h"; sourceTree = "<group>"; };
 		1A2B3C4D5E6F7A8000000130 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		1A2B3C4D5E6F7A8000000131 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		1A2B3C4D5E6F7A8000000132 /* ServicesMenu.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.xcstrings; path = ServicesMenu.xcstrings; sourceTree = "<group>"; };
 		C705622B2F875E5F0055C8BE /* FavoriteItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FavoriteItem.swift; path = SwiftMTP/Models/FavoriteItem.swift; sourceTree = "<group>"; };
 		C705622D2F875E6E0055C8BE /* FavoritesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FavoritesManager.swift; path = SwiftMTP/Services/FavoritesManager.swift; sourceTree = "<group>"; };
 		C717C1DA2FDEDFBE00E667E9 /* swiftmtp-cli */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "swiftmtp-cli"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -100,6 +122,8 @@
 		C75229242FACFB330044B6AB /* AIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIManager.swift; path = SwiftMTP/Services/AIManager.swift; sourceTree = "<group>"; };
 		C7887B8F2FD52A96005B5BDD /* gomtp.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = gomtp.dylib; path = lib/gomtp.dylib; sourceTree = "<group>"; };
 		C7887B912FD52B81005B5BDD /* GomtpShim.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = GomtpShim.c; path = GomtpShim/GomtpShim.c; sourceTree = "<group>"; };
+		C7890A023056EE3B00776FD3 /* ShareDestinationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ShareDestinationPickerView.swift; path = SwiftMTP/Views/ShareDestinationPickerView.swift; sourceTree = "<group>"; };
+		C7890A083056F29A00776FD3 /* SendToSwiftMTPExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SendToSwiftMTPExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7A475DB2F78E957005EDC2E /* MTPIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = MTPIcon.icon; sourceTree = "<group>"; };
 		C7AC00192F9A00010055C8BE /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = UpdateChecker.swift; path = SwiftMTP/Services/UpdateChecker.swift; sourceTree = "<group>"; };
 		C7B754542F8A219B0075406B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SettingsView.swift; path = SwiftMTP/Views/SettingsView.swift; sourceTree = "<group>"; };
@@ -113,6 +137,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C7890A183056F29A00776FD3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = C7890A073056F29A00776FD3 /* SendToSwiftMTPExtension */;
+		};
 		C7E51F312FEEBE4600752533 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -124,6 +155,7 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		C717C1DB2FDEDFBE00E667E9 /* swiftmtp-cli */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C7E51F312FEEBE4600752533 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = "swiftmtp-cli"; sourceTree = "<group>"; };
+		C7890A093056F29A00776FD3 /* SendToSwiftMTPExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C7890A183056F29A00776FD3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = SendToSwiftMTPExtension; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -143,6 +175,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C7890A053056F29A00776FD3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -155,10 +194,13 @@
 				1A2B3C4D5E6F7A8000000310 /* lib */,
 				1A2B3C4D5E6F7A8000000120 /* SwiftMTP-Bridging-Header.h */,
 				1A2B3C4D5E6F7A8000000130 /* Localizable.xcstrings */,
+				1A2B3C4D5E6F7A8000000132 /* ServicesMenu.xcstrings */,
 				C717C1DB2FDEDFBE00E667E9 /* swiftmtp-cli */,
+				C7890A093056F29A00776FD3 /* SendToSwiftMTPExtension */,
 				C74E682D2F78CF5100F8A2FE /* Recovered References */,
 				C74E682E2F78CF5100F8A2FE /* SwiftMTP.app */,
 				C717C1DA2FDEDFBE00E667E9 /* swiftmtp-cli */,
+				C7890A083056F29A00776FD3 /* SendToSwiftMTPExtension.appex */,
 			);
 			sourceTree = "<group>";
 		};
@@ -189,6 +231,7 @@
 				C7C8859C305A9D4F0090BFBE /* FileGalleryView.swift */,
 				C7C8859D305A9D4F0090BFBE /* FileIconView.swift */,
 				C7C8859E305A9D4F0090BFBE /* FileViewShared.swift */,
+				C7890A023056EE3B00776FD3 /* ShareDestinationPickerView.swift */,
 				C7B754542F8A219B0075406B /* SettingsView.swift */,
 				C72F6C232F87DFF10015604B /* QuickLookOverlayView.swift */,
 				C7516A782F800928006B1603 /* SidebarView.swift */,
@@ -255,11 +298,13 @@
 				1A2B3C4D5E6F7A8000000420 /* CopyFiles */,
 				C7B582572FE91BAB00AD4869 /* CopyFiles */,
 				C7E5F65D2F78FF4F004B6939 /* Resources */,
+				C7890A193056F29A00776FD3 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				C7B582562FE91A0A00AD4869 /* PBXTargetDependency */,
+				C7890A133056F29A00776FD3 /* PBXTargetDependency */,
 			);
 			name = SwiftMTP;
 			productName = SwiftMTP;
@@ -287,6 +332,28 @@
 			productReference = C717C1DA2FDEDFBE00E667E9 /* swiftmtp-cli */;
 			productType = "com.apple.product-type.tool";
 		};
+		C7890A073056F29A00776FD3 /* SendToSwiftMTPExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C7890A153056F29A00776FD3 /* Build configuration list for PBXNativeTarget "SendToSwiftMTPExtension" */;
+			buildPhases = (
+				C7890A043056F29A00776FD3 /* Sources */,
+				C7890A053056F29A00776FD3 /* Frameworks */,
+				C7890A063056F29A00776FD3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C7890A093056F29A00776FD3 /* SendToSwiftMTPExtension */,
+			);
+			name = SendToSwiftMTPExtension;
+			packageProductDependencies = (
+			);
+			productName = SendToSwiftMTPExtension;
+			productReference = C7890A083056F29A00776FD3 /* SendToSwiftMTPExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -298,6 +365,9 @@
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
 					C717C1D92FDEDFBE00E667E9 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					C7890A073056F29A00776FD3 = {
 						CreatedOnToolsVersion = 26.3;
 					};
 				};
@@ -322,11 +392,19 @@
 			targets = (
 				C717C1D92FDEDFBE00E667E9 /* swiftmtp-cli */,
 				1A2B3C4D5E6F7A8000000500 /* SwiftMTP */,
+				C7890A073056F29A00776FD3 /* SendToSwiftMTPExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		C7890A063056F29A00776FD3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C7E5F65D2F78FF4F004B6939 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -379,12 +457,14 @@
 				C7C885A1305A9D4F0090BFBE /* FileIconView.swift in Sources */,
 				C7516A732F8008D9006B1603 /* USBMonitor.swift in Sources */,
 				1A2B3C4D5E6F7A8000000012 /* Localizable.xcstrings in Sources */,
+				1A2B3C4D5E6F7A8000000014 /* ServicesMenu.xcstrings in Sources */,
 				C705622E2F875E6E0055C8BE /* FavoritesManager.swift in Sources */,
 				C7516A6E2F8008A5006B1603 /* MTPFile.swift in Sources */,
 				C705622C2F875E5F0055C8BE /* FavoriteItem.swift in Sources */,
 				C7516A6F2F8008A5006B1603 /* MTPDevice.swift in Sources */,
 				C7C4AFF32F83B37E0047364C /* MTPDeviceInfo.swift in Sources */,
 				C725E65B2F7CCDD0007937AB /* ErrorStringLocalizer.swift in Sources */,
+				C7890A033056EE3B00776FD3 /* ShareDestinationPickerView.swift in Sources */,
 				C7B754552F8A219B0075406B /* SettingsView.swift in Sources */,
 				C7AC001A2F9A00010055C8BE /* UpdateChecker.swift in Sources */,
 			);
@@ -398,9 +478,21 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C7890A043056F29A00776FD3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		C7890A133056F29A00776FD3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C7890A073056F29A00776FD3 /* SendToSwiftMTPExtension */;
+			targetProxy = C7890A123056F29A00776FD3 /* PBXContainerItemProxy */;
+		};
 		C7B582562FE91A0A00AD4869 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = C717C1D92FDEDFBE00E667E9 /* swiftmtp-cli */;
@@ -422,7 +514,7 @@
 				CODE_SIGN_ENTITLEMENTS = SwiftMTP/SwiftMTP.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 20;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -443,7 +535,7 @@
 					"$(PROJECT_DIR)/lib",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 1.3.0;
+				MARKETING_VERSION = 1.3.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"$(SRCROOT)/lib/gomtp.dylib",
@@ -471,7 +563,7 @@
 				CODE_SIGN_ENTITLEMENTS = SwiftMTP/SwiftMTP.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 20;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -492,7 +584,7 @@
 					"$(PROJECT_DIR)/lib",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 1.3.0;
+				MARKETING_VERSION = 1.3.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"$(SRCROOT)/lib/gomtp.dylib",
@@ -700,6 +792,122 @@
 			};
 			name = Release;
 		};
+		C7890A163056F29A00776FD3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SendToSwiftMTPExtension/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = me.neighborz.swiftmtp.SendToSwiftMTPExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C7890A173056F29A00776FD3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 10;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SendToSwiftMTPExtension/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = me.neighborz.swiftmtp.SendToSwiftMTPExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -726,6 +934,15 @@
 			buildConfigurations = (
 				C717C1DE2FDEDFBE00E667E9 /* Debug */,
 				C717C1DF2FDEDFBE00E667E9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C7890A153056F29A00776FD3 /* Build configuration list for PBXNativeTarget "SendToSwiftMTPExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C7890A163056F29A00776FD3 /* Debug */,
+				C7890A173056F29A00776FD3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

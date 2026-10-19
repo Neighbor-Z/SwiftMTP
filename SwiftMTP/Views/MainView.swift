@@ -3,6 +3,7 @@ import Foundation
 import AppKit
 
 struct MainView: View {
+    var mainWindowID: UUID? = nil
     @StateObject private var manager = MTPManager()
     @StateObject private var favoritesManager = FavoritesManager()
     @State private var selection: Set<MTPFile.ID> = []
@@ -29,6 +30,12 @@ struct MainView: View {
     // AI Analysis State (Persists until app exit)
     @State private var aiHelpResult: String?
     @State private var isAIProcessing = false
+    
+    // Quick Action (Finder "Send to SwiftMTP") State
+    @State private var activeShareRequest: ShareRequest?
+    @State private var isSharePickerActive = false
+    @State private var pendingShareTransfer: (request: ShareRequest, destination: String)?
+    @ObservedObject private var quickActionState = QuickActionState.shared
 
     @EnvironmentObject private var viewModeSettings: ViewModeSettings
     private var viewMode: FileBrowserViewMode { FileBrowserViewMode(rawValue: viewModeSettings.viewModeRaw) ?? .list }
@@ -52,6 +59,37 @@ struct MainView: View {
         }
     }
 
+    private func presentNextShareRequest() {
+        // SwiftUI can retain a closed window's view and its subscriptions.
+        // Only the current main window may consume a pending request.
+        guard WindowManager.shared.isMainWindow(id: mainWindowID),
+              !isSharePickerActive, pendingShareTransfer == nil,
+              !manager.isTransferActive, let request = quickActionState.takeNext() else { return }
+        isSharePickerActive = true
+        activeShareRequest = request
+    }
+
+    private func sharePickerDidDismiss() {
+        isSharePickerActive = false
+        guard let transfer = pendingShareTransfer else {
+            presentNextShareRequest()
+            return
+        }
+        pendingShareTransfer = nil
+        // Start the transfer only after the picker is gone, so the transfer
+        // sheet never competes with it for the same window.
+        var stack = ["/"]
+        var current = ""
+        for component in transfer.destination.split(separator: "/") {
+            current += "/\(component)"
+            stack.append(current)
+        }
+        manager.navigationStack = stack
+        manager.upload(sourceURLs: transfer.request.urls)
+        // upload synchronously acquires its own security scope before this
+        // request releases its access at the end of the method.
+    }
+
     var body: some View {
         ZStack {
             contentView
@@ -73,7 +111,8 @@ struct MainView: View {
             isPresented: Binding(
                 get: { manager.isTransferActive },
                 set: { _ in }
-            )
+            ),
+            onDismiss: { presentNextShareRequest() }
         ) {
             TransferOverlay(
                 stats: manager.transferStats,
@@ -219,6 +258,25 @@ struct MainView: View {
             if !selectedFiles.isEmpty {
                 isShowingDeleteConfirmation = true
             }
+        }
+        .onReceive(quickActionState.$requests) { _ in
+            // @Published also sends the initial value, covering cold launch.
+            // Defer consumption until after its willSet publication completes.
+            DispatchQueue.main.async { presentNextShareRequest() }
+        }
+        .sheet(item: $activeShareRequest, onDismiss: sharePickerDidDismiss) { request in
+            ShareDestinationPickerView(
+                manager: manager,
+                pendingURLs: request.urls,
+                onConfirm: { _, destinationPath in
+                    pendingShareTransfer = (request, destinationPath)
+                    activeShareRequest = nil
+                },
+                onCancel: {
+                    activeShareRequest = nil
+                }
+            )
+            .interactiveDismissDisabled(true)
         }
         .focusedSceneValue(\.isConnected, manager.connectionState.isConnected)
         .focusedSceneValue(\.canGoBack, manager.canGoBack)
