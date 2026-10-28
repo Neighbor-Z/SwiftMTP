@@ -175,12 +175,20 @@ struct SidebarView: View {
                     Text(storage.name)
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
-                    ProgressView(value: Double(storage.usedSpace), total: Double(storage.totalSpace))
-                        .progressViewStyle(.linear)
-                        .tint(storageColor(storage))
-                    Text("\(storage.displayFreeSpace) free of \(storage.displayTotalSpace)")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                    if storage.hasCapacityInfo {
+                        ProgressView(value: Double(storage.usedSpace), total: Double(storage.totalSpace))
+                            .progressViewStyle(.linear)
+                            .tint(storageColor(storage))
+                        Text("\(storage.displayFreeSpace) free of \(storage.displayTotalSpace)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        // A zero total would turn the linear bar into an
+                        // indeterminate one that animates forever.
+                        Text("Capacity unavailable")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .padding(.vertical, 4)
@@ -190,6 +198,7 @@ struct SidebarView: View {
     }
 
     private func storageColor(_ s: MTPStorage) -> Color {
+        guard s.hasCapacityInfo else { return .accentColor }
         let ratio = Double(s.usedSpace) / Double(s.totalSpace)
         if ratio > 0.9 { return .red }
         if ratio > 0.75 { return .orange }

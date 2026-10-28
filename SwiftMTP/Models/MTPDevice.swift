@@ -34,8 +34,11 @@ struct MTPStorage: Identifiable, Equatable {
 
     var usedSpace: Int64 { totalSpace - freeSpace }
 
-    var displayFreeSpace: String { formatBytes(freeSpace) }
-    var displayTotalSpace: String { formatBytes(totalSpace) }
+    /// Some storages (e.g. DBI's virtual Album) report no capacity at all.
+    var hasCapacityInfo: Bool { totalSpace > 0 }
+
+    var displayFreeSpace: String { hasCapacityInfo ? formatBytes(freeSpace) : "-" }
+    var displayTotalSpace: String { hasCapacityInfo ? formatBytes(totalSpace) : "-" }
 
     private func formatBytes(_ bytes: Int64) -> String {
         let d = Double(bytes)
