@@ -514,7 +514,7 @@
 				CODE_SIGN_ENTITLEMENTS = SwiftMTP/SwiftMTP.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -563,7 +563,7 @@
 				CODE_SIGN_ENTITLEMENTS = SwiftMTP/SwiftMTP.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -719,6 +719,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/lib/gomtp.dylib",
 					"$(SRCROOT)/lib/libusb.dylib",
+					"-Wl,-sectcreate,__TEXT,__info_plist,$(SRCROOT)/swiftmtp-cli/CLI-Info.plist",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = me.neighborz.swiftmtp.cli;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -779,6 +780,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/lib/gomtp.dylib",
 					"$(SRCROOT)/lib/libusb.dylib",
+					"-Wl,-sectcreate,__TEXT,__info_plist,$(SRCROOT)/swiftmtp-cli/CLI-Info.plist",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = me.neighborz.swiftmtp.cli;
 				PRODUCT_NAME = "$(TARGET_NAME)";
