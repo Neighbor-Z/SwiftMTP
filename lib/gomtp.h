@@ -21,7 +21,8 @@ extern const char *_GoStringPtr(_GoString_ s);
 /* Start of preamble from import "C" comments.  */
 
 
-#line 16 "gomtp.go"
+#line 3 "gomtp.go"
+
 	#include "stdint.h"
 	typedef void (* on_cb_result_t)(char*);
 
