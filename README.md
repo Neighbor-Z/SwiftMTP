@@ -31,7 +31,7 @@ Inspired by [OpenMTP](https://github.com/ganeshrvel/openmtp/), SwiftMTP uses the
 <details open>
 
 <summary>
-    
+  
 ### Upcoming
 </summary>
 
@@ -51,12 +51,14 @@ Introducing Share Extension. It allows you to send documents or media straight t
   <img src="https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Share_Menu.png" width="258" >
 </div>
 
+![Share Picker](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Share_Picker.png)
+
 </details>
 
 <details>
 
 <summary>
-    
+  
 ### swiftmtp-cli
 </summary>
 
