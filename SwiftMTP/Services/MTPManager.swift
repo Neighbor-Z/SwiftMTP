@@ -23,6 +23,27 @@ final class MTPManager: ObservableObject {
     
     // NEW: Pass "" to let Go connect to the first available device, or specific ID for exact matches.
     var deviceId: String = ""
+
+    var canChangeDeviceTimeZone: Bool {
+        if case .none = operation {
+            return !isTransferActive && !isProcessingPromiseBatch
+        }
+        return false
+    }
+
+    func deviceTimeZoneIdentifier(for id: String) -> String {
+        UserDefaults.standard.string(forKey: "deviceTimeZone.\(id)") ?? ""
+    }
+
+    func setDeviceTimeZone(_ identifier: String, for id: String) {
+        guard canChangeDeviceTimeZone,
+              identifier.isEmpty || TimeZone(identifier: identifier) != nil else { return }
+        UserDefaults.standard.set(identifier, forKey: "deviceTimeZone.\(id)")
+        if id == deviceId, connectionState.isConnected {
+            // Reinitialize under the backend's device lock and refresh all dates.
+            reconnectAndRestore(to: currentPath)
+        }
+    }
     
     var currentPath: String { navigationStack.last ?? "/" }
     var canGoBack: Bool { navigationStack.count > 1 }
@@ -331,6 +352,9 @@ final class MTPManager: ObservableObject {
                 maxSpeedBytesPerSecond: detectedUSB.maxSpeedBytesPerSecond
             )
             DispatchQueue.main.async {
+                // Publish loading before readiness so observers wait for the
+                // automatic walk instead of consuming the previous file list.
+                self.isLoading = true
                 self.connectionState = .connected(device)
                 self.selectedStorage = first
                 if let pendingPath = self.pendingNavigationPath {
@@ -397,7 +421,7 @@ final class MTPManager: ObservableObject {
                     id: String(fi.objectId),
                     name: fi.name,
                     size: fi.size,
-                    dateModified: self.parseGomtpDate(fi.dateAdded) ?? Date(),
+                    dateModified: MTPFile.parseModificationDate(fi.dateAdded) ?? Date(),
                     isDirectory: fi.isFolder,
                     path: fi.path,
                     extension_: fi.extension_
@@ -534,7 +558,11 @@ final class MTPManager: ObservableObject {
         }
         
         operation = .initializing
-        let input: [String: Any] = ["deviceId": self.deviceId]
+        let configuredTimeZone = deviceTimeZoneIdentifier(for: deviceId)
+        let input: [String: Any] = [
+            "deviceId": self.deviceId,
+            "deviceTimeZone": configuredTimeZone.isEmpty ? TimeZone.current.identifier : configuredTimeZone
+        ]
         if let jsonString = toJsonString(input) {
             DispatchQueue.global(qos: .userInitiated).async {
                 jsonString.withCString { ptr in
@@ -1293,17 +1321,6 @@ final class MTPManager: ObservableObject {
         case let v as NSNumber: return v.int64Value
         default: return nil
         }
-    }
-    
-    private func parseGomtpDate(_ dateAdded: String) -> Date? {
-        // Format matches `send_to_js/constants.go`:
-        // "2006-01-02T15:04:05.000Z"
-        // Note: Backend sends local time despite the 'Z' suffix.
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone.current
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-        return formatter.date(from: dateAdded)
     }
     
     private struct GomtpWalkFileInfo: Decodable {

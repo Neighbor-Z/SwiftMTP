@@ -9,6 +9,18 @@ struct MTPFile: Identifiable, Hashable, Sendable {
     let path: String
     let extension_: String
 
+    /// The Go bridge sends an ISO 8601 instant with an explicit time zone.
+    /// Keep that instant intact; the views apply the Mac's display time zone.
+    static func parseModificationDate(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) {
+            return date
+        }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+
     var displaySize: String {
         guard !isDirectory else { return "—" }
         let bytes = Double(size)

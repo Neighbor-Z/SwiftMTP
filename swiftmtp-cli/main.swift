@@ -38,6 +38,17 @@ func formatBytes(_ bytes: Int64) -> String {
     }
 }
 
+private func localListingDate(_ value: String) -> String {
+    let parser = ISO8601DateFormatter()
+    parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    guard let date = parser.date(from: value) else { return value }
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = .current
+    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    return formatter.string(from: date)
+}
+
 struct GomtpWalkFileInfo: Decodable {
     let size: Int64
     let isFolder: Bool
@@ -160,7 +171,10 @@ class CLIMTPClient {
     }
     
     static func initialize(deviceId: String) -> Bool {
-        let input = ["deviceId": deviceId]
+        let input = [
+            "deviceId": deviceId,
+            "deviceTimeZone": ProcessInfo.processInfo.environment["SWIFTMTP_DEVICE_TIME_ZONE"] ?? TimeZone.current.identifier
+        ]
         guard let jsonStr = toJson(input) else { return false }
         
         let sem = DispatchSemaphore(value: 0)
@@ -691,7 +705,7 @@ class InteractiveShell {
             let type = file.isFolder ? "<DIR>" : "     "
             let sizeStr = file.isFolder ? "-" : String(file.size)
             let paddedSize = String(repeating: " ", count: max(0, 12 - sizeStr.count)) + sizeStr
-            let dateStr = file.dateAdded.padding(toLength: 20, withPad: " ", startingAt: 0)
+            let dateStr = localListingDate(file.dateAdded).padding(toLength: 20, withPad: " ", startingAt: 0)
             print("\(type) \(paddedSize)  \(dateStr)  \(file.name)")
         }
     }
@@ -992,7 +1006,7 @@ func printUsage() {
 }
 
 func printVersion() {
-    print("SwiftMTP App    v1.3.1")
+    print("SwiftMTP App    v1.3.2")
     print("swiftmtp-cli    v0.1.2")
     
     var sysinfo = utsname()
@@ -1130,7 +1144,7 @@ func main() {
             let type = file.isFolder ? "<DIR>" : "     "
             let sizeStr = file.isFolder ? "-" : String(file.size)
             let paddedSize = String(repeating: " ", count: max(0, 12 - sizeStr.count)) + sizeStr
-            let dateStr = file.dateAdded.padding(toLength: 20, withPad: " ", startingAt: 0)
+            let dateStr = localListingDate(file.dateAdded).padding(toLength: 20, withPad: " ", startingAt: 0)
             print("\(type) \(paddedSize)  \(dateStr)  \(file.name)")
         }
         CLIMTPClient.dispose(deviceId: deviceId)

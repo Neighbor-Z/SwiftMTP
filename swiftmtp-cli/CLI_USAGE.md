@@ -4,6 +4,12 @@ This document is designed to help everyone including AI agents understand and ut
 
 ## Overview
 
+File modification times preserve the same instant across time zones. Listings
+display that instant in the Mac's time zone. For a device in a different time zone,
+set `SWIFTMTP_DEVICE_TIME_ZONE` to its IANA time zone (for example,
+`Europe/Berlin`) before starting the CLI. Without it, the CLI assumes the device
+uses the Mac's time zone. Explicit offsets in device timestamps take precedence.
+
 The tool operates in two primary modes:
 1. **Stateless Mode**: Execute a single command and exit immediately. Ideal for scripting and automated tasks where keeping state is unnecessary.
 2. **Interactive Shell (REPL)**: Maintains a stateful connection (e.g., current working directory). Extremely useful for sequential operations, avoiding the overhead of re-initializing the device connection for every command.
