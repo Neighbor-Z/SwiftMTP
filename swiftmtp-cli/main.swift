@@ -325,7 +325,7 @@ class CLIMTPClient {
             guard let result = CallbackState.shared.lastResultJson else { return false }
             guard let err = extractError(result) else { return true }
             let envelope = (try? JSONSerialization.jsonObject(with: Data(result.utf8))) as? [String: Any]
-            print("Error downloading: \(err)")
+            print("Error exporting: \(err)")
             if let issues = envelope?["issues"] as? [[String: Any]] {
                 for issue in issues {
                     print("  \(issue["parentPath"] ?? "") [#\(issue["objectId"] ?? "?")] \(issue["operation"] ?? ""): \(issue["reason"] ?? "")")
@@ -337,18 +337,18 @@ class CLIMTPClient {
                envelope?["data"] as? Bool == false,
                envelope?["filesSent"] as? Int64 == 0,
                envelope?["bytesSent"] as? Int64 == 0 {
-                print("No files have been downloaded. Continue with readable items? [y/N] ", terminator: "")
+                print("Some items could not be read. Continue with readable ones? [y/N] ", terminator: "")
                 fflush(stdout)
                 guard isatty(STDIN_FILENO) != 0,
                       let answer = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
                       answer == "y" || answer == "yes" else {
-                    print("Download cancelled.")
+                    print("Export cancelled.")
                     return false
                 }
                 input["preprocessFiles"] = false
                 continue
             }
-            print("Downloaded \(envelope?["filesSent"] ?? 0) files (\(envelope?["bytesSent"] ?? 0) bytes).")
+            print("Exported \(envelope?["filesSent"] ?? 0) files (\(envelope?["bytesSent"] ?? 0) bytes).")
             return false
         }
         return false
@@ -374,7 +374,7 @@ class CLIMTPClient {
         
         guard let result = CallbackState.shared.lastResultJson else { return false }
         if let err = extractError(result) {
-            print("Error uploading: \(err)")
+            print("Error importing: \(err)")
             return false
         }
         return true
@@ -725,8 +725,8 @@ class InteractiveShell {
                 print("  ls [-a] [path]       - List directory")
                 print("  cd <path>            - Change directory")
                 print("  pwd                  - Print working directory")
-                print("  pull <file> <local>  - Download file to local path")
-                print("  push <local> <dest>  - Upload local file to device path")
+                print("  pull <file> <local>  - Export file to local path")
+                print("  push <local> <dest>  - Import local file to device path")
                 print("  rm [-r] <path>       - Delete file or directory (use -r for directories)")
                 print("  mv <path> <new_path> - Rename file or directory")
                 print("  mkdir <path>         - Create a new directory")
@@ -1066,7 +1066,7 @@ func printUsage() {
 
 func printVersion() {
     print("SwiftMTP App    v1.3.2")
-    print("swiftmtp-cli    v0.1.2")
+    print("swiftmtp-cli    v0.1.3")
     
     var sysinfo = utsname()
     uname(&sysinfo)
