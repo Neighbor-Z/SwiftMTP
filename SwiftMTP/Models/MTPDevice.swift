@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 struct MTPDevice: Identifiable, Equatable {
     let id: String
@@ -32,10 +33,36 @@ struct MTPStorage: Identifiable, Equatable {
     let freeSpace: Int64
     let totalSpace: Int64
 
-    var usedSpace: Int64 { totalSpace - freeSpace }
+    let freeSpaceKnown: Bool
+    let totalSpaceKnown: Bool
 
-    var displayFreeSpace: String { formatBytes(freeSpace) }
-    var displayTotalSpace: String { formatBytes(totalSpace) }
+    init(id: String, name: String, freeSpace: Int64?, totalSpace: Int64?) {
+        self.id = id
+        self.name = name
+        self.freeSpaceKnown = freeSpace.map { $0 >= 0 } ?? false
+        // A zero total cannot describe a usable capacity (e.g. virtual storages).
+        self.totalSpaceKnown = totalSpace.map { $0 > 0 } ?? false
+        self.freeSpace = freeSpaceKnown ? freeSpace! : 0
+        self.totalSpace = totalSpaceKnown ? totalSpace! : 0
+    }
+
+    var hasCapacityInfo: Bool {
+        totalSpaceKnown && freeSpaceKnown && freeSpace <= totalSpace
+    }
+
+    // The numeric placeholder is consumed only when hasCapacityInfo is true.
+    var usedSpace: Int64 { hasCapacityInfo ? totalSpace - freeSpace : 0 }
+
+    var displayFreeSpace: String { freeSpaceKnown ? formatBytes(freeSpace) : "—" }
+    var displayTotalSpace: String { totalSpaceKnown ? formatBytes(totalSpace) : "—" }
+
+    /// Preserve integer precision across JSON/NSNumber bridging; never wrap or truncate.
+    static func capacityBytes(from value: Any?) -> Int64? {
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              let bytes = UInt64(number.stringValue), bytes != UInt64.max else { return nil }
+        return Int64(exactly: bytes)
+    }
 
     private func formatBytes(_ bytes: Int64) -> String {
         let d = Double(bytes)
