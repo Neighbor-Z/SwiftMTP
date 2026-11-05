@@ -28,31 +28,13 @@ Inspired by [OpenMTP](https://github.com/ganeshrvel/openmtp/), SwiftMTP uses the
 
 ## News
 
-<details open>
+<details>
 
 <summary>
   
 ### Upcoming
 </summary>
-
-#### Multiple views
-
-Introducing Gallery View and Icon View.
-
-| Gallery View                                     | Icon View                                    |
-| ------------------------------------------------ | -------------------------------------------- |
-| ![Gallery View](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Gallery_View.png) | ![Icon View](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Icon_View.png) |
-
-#### Share Extension
-
-Introducing Share Extension. It allows you to send documents or media straight to your devices through SwiftMTP without leaving your desktop or opening the main window. 
-
-<div align="center">
-  <img src="https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Share_Menu.png" width="258" >
-</div>
-
-![Share Picker](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Share_Picker.png)
-
+Please stay tuned!
 </details>
 
 <details>
@@ -92,16 +74,17 @@ For AI details, privacy and security, please read [Details_and_Privacy.md](https
 
 ## Screenshot
 
-![Main UI](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/screenshot.png)
-
-| File menu with Keyboard Shortcuts                | Go menu with Keyboard Shortcuts              |
+| Gallery View                                     | Icon View                                    |
 | ------------------------------------------------ | -------------------------------------------- |
-| ![File Menu](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/file_menu_in_Tahoe.png) | ![Go Menu](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/go_menu_in_Tahoe.png) |
+| ![Gallery View](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Gallery_View.png) | ![Icon View](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Icon_View.png) |
 
 | Natural Language Search                                      | Device Info Analysis                                         |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | ![NLSearch](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/NLSearch.png) | ![DIA](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Device_Info_Analysis.png) |
 
+| Share Option in Finder Menu                      | Destination Picker                           |
+| ------------------------------------------------ | -------------------------------------------- |
+| ![Menu](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Share_Menu.png) | ![Share Picker](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Share_Picker.png) |
 
 ---
 
