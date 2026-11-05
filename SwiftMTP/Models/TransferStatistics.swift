@@ -34,6 +34,57 @@ struct TransferSizeInfo: Decodable {
     let total: Int64?
     let sent: Int64?
     let progress: Float?
+    var totalKnown: Bool? = nil
+
+    // Older backends omit totalKnown; explicit false always wins over numeric fields.
+    var isTotalKnown: Bool { totalKnown ?? (total != nil) }
+
+    var fraction: Double? {
+        guard isTotalKnown, let progress, progress.isFinite else { return nil }
+        return min(1, max(0, Double(progress) / 100))
+    }
+}
+
+/// The done envelope is also the authorization boundary for skipping preflight.
+struct TransferResult: Decodable {
+    let data: Bool?
+    let canContinue: Bool?
+    let filesSent: Int64?
+    let bytesSent: Int64?
+    let errorType: String?
+    let error: String?
+    let issues: [TransferIssue]?
+
+    var requiresDownloadConfirmation: Bool {
+        errorType == "ErrorDownloadPreflightIncomplete" && canContinue == true &&
+        data == false && filesSent == 0 && bytesSent == 0
+    }
+
+    var issueDetails: String {
+        let details = (issues ?? []).map(\.description).joined(separator: "\n")
+        return details.isEmpty ? (error ?? "") : details
+    }
+
+    var failureSummary: String {
+        let summary = String(format: String(localized: "Downloaded %lld files (%@)."),
+                             filesSent ?? 0,
+                             ByteCountFormatter.string(fromByteCount: bytesSent ?? 0, countStyle: .file))
+        return summary + "\n\n" + (error ?? "") + "\n" + issueDetails
+    }
+}
+
+struct TransferIssue: Decodable {
+    let objectId: UInt32?
+    let parentId: UInt32?
+    let parentPath: String?
+    let operation: String?
+    let reason: String?
+
+    var description: String {
+        let location = parentPath ?? parentId.map { "parent #\($0)" } ?? ""
+        let handle = objectId.map { "#\($0)" } ?? "?"
+        return "\(location) [\(handle), \(operation ?? "")] \(reason ?? "")"
+    }
 }
 
 /// Transfer statistics calculation and formatting
@@ -48,42 +99,35 @@ class TransferStatistics {
     
     /// Elapsed time in seconds
     var elapsedTime: TimeInterval {
-        TimeInterval((progressData.elapsedTime ?? 0) / 1000)
+        TimeInterval(progressData.elapsedTime ?? 0) / 1000
     }
     
     /// Transfer speed in MB/s
     var speed: Double {
-        progressData.speed ?? 0.0
+        progressData.speed.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? 0
     }
     
     /// Remaining time in seconds
     var remainingTime: TimeInterval {
-        guard speed > 0,
+        guard progressData.bulkFileSize?.isTotalKnown == true, speed > 0,
               let totalSize = progressData.bulkFileSize?.total,
               let sentSize = progressData.bulkFileSize?.sent else {
             return -1
         }
-        let remainingBytes = Double(totalSize - sentSize)
+        let remainingBytes = max(0, Double(totalSize) - Double(sentSize))
         let remainingMB = remainingBytes / (1024 * 1024)
         return remainingMB / speed
     }
     
-    /// Overall progress percentage (0-1)
-    var progressPercentage: Double {
-        guard let progress = progressData.bulkFileSize?.progress else {
-            return 0
-        }
-        return Double(progress) / 100.0
+    /// nil means indeterminate, including mixed known/unknown downloads.
+    var overallProgress: Double? {
+        if progressData.status == "Completed" { return 1 }
+        return progressData.bulkFileSize?.fraction
     }
-    
-    /// Current file progress percentage (0-1)
-    var activeFileProgress: Double {
-        guard let progress = progressData.activeFileSize?.progress else {
-            return 0
-        }
-        return Double(progress) / 100.0
-    }
-    
+
+    var progressPercentage: Double { overallProgress ?? 0 }
+    var activeFileProgress: Double { progressData.activeFileSize?.fraction ?? 0 }
+
     // MARK: - Formatted Strings
     
     /// Formatted transfer speed string
@@ -110,7 +154,8 @@ class TransferStatistics {
     
     /// Current file total size string
     var activeFileSizeString: String {
-        guard let total = progressData.activeFileSize?.total else { 
+        guard progressData.activeFileSize?.isTotalKnown == true,
+              let total = progressData.activeFileSize?.total else {
             return "—"
         }
         return formatFileSize(total)
@@ -126,7 +171,8 @@ class TransferStatistics {
     
     /// Total file size string
     var totalSizeString: String {
-        guard let total = progressData.bulkFileSize?.total else { 
+        guard progressData.bulkFileSize?.isTotalKnown == true,
+              let total = progressData.bulkFileSize?.total else {
             return "—"
         }
         return formatFileSize(total)
@@ -161,7 +207,7 @@ class TransferStatistics {
             let format = String(localized: "%d of %d files")
             return String(format: format, sent, total)
         }
-        return String(localized: "—")
+        return String(format: String(localized: "%lld files transferred"), sent)
     }
     
     /// Complete progress summary for notifications or logs
@@ -169,7 +215,7 @@ class TransferStatistics {
         let elapsed = elapsedTimeString
         let speed = speedString
         let remaining = remainingTimeString
-        let percentage = progressPercentage.formatted(.percent.precision(.fractionLength(1)))
+        let percentage = overallProgress?.formatted(.percent.precision(.fractionLength(1))) ?? "—"
         return "\(percentage) | \(elapsed) elapsed | \(remaining) remaining | \(speed)"
     }
     

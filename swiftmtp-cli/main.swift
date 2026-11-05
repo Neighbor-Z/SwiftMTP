@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 // MARK: - Models
 
@@ -38,6 +39,14 @@ func formatBytes(_ bytes: Int64) -> String {
     }
 }
 
+// The CLI is a separate target; keep the same capacity rules as MTPStorage.
+private func capacityBytes(from value: Any?) -> Int64? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID(),
+          let bytes = UInt64(number.stringValue), bytes != UInt64.max else { return nil }
+    return Int64(exactly: bytes)
+}
+
 private func localListingDate(_ value: String) -> String {
     let parser = ISO8601DateFormatter()
     parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -51,6 +60,7 @@ private func localListingDate(_ value: String) -> String {
 
 struct GomtpWalkFileInfo: Decodable {
     let size: Int64
+    let sizeKnown: Bool?
     let isFolder: Bool
     let dateAdded: String
     let name: String
@@ -59,7 +69,7 @@ struct GomtpWalkFileInfo: Decodable {
     let objectId: UInt32
     
     private enum CodingKeys: String, CodingKey {
-        case size
+        case size, sizeKnown
         case isFolder
         case dateAdded
         case name
@@ -73,6 +83,7 @@ struct TransferSizeInfo: Decodable {
     let total: Int64?
     let sent: Int64?
     let progress: Float?
+    let totalKnown: Bool?
 }
 
 struct TransferProgressData: Decodable {
@@ -128,12 +139,20 @@ let cbProgress: @convention(c) (UnsafeMutablePointer<CChar>?) -> Void = { ptr in
            let jsonData = try? JSONSerialization.data(withJSONObject: dataAny),
            let progress = try? JSONDecoder().decode(TransferProgressData.self, from: jsonData) {
             
-            let speedMBps = progress.speed ?? 0.0
-            let percent = progress.bulkFileSize?.progress ?? 0.0
+            let speedMBps = progress.speed.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? 0
+            guard progress.bulkFileSize?.totalKnown != false,
+                  let rawPercent = progress.bulkFileSize?.progress, rawPercent.isFinite else {
+                let sent = formatBytes(progress.bulkFileSize?.sent ?? 0)
+                print(String(format: "\r%@ | %6.2f MB/s | %.0fs elapsed", sent, speedMBps, Double(progress.elapsedTime ?? 0) / 1000), terminator: "")
+                fflush(stdout)
+                CallbackState.shared.didPrintProgress = true
+                return
+            }
             
+            let percent = min(100, max(0, rawPercent))
             var etaString = "--s"
             if speedMBps > 0, let total = progress.bulkFileSize?.total, let sent = progress.bulkFileSize?.sent {
-                let remainingMB = Double(total - sent) / (1024 * 1024)
+                let remainingMB = max(0, Double(total) - Double(sent)) / (1024 * 1024)
                 let remainingSecs = Int(remainingMB / speedMBps)
                 if remainingSecs > 60 {
                     etaString = "\(remainingSecs / 60)m \(remainingSecs % 60)s"
@@ -144,7 +163,7 @@ let cbProgress: @convention(c) (UnsafeMutablePointer<CChar>?) -> Void = { ptr in
             
             let barWidth = 30
             let filled = Int(Double(barWidth) * Double(percent) / 100.0)
-            let empty = barWidth - filled
+            let empty = max(0, barWidth - filled)
             let filledStr = String(repeating: "=", count: max(0, filled - 1)) + (filled > 0 ? ">" : "")
             let emptyStr = String(repeating: " ", count: empty)
             
@@ -233,16 +252,32 @@ class CLIMTPClient {
             let infoAny = storage["Info"] as? [String: Any] ?? storage["info"] as? [String: Any]
             let name = infoAny?["StorageDescription"] as? String ?? "Storage"
             
-            let freeSpaceRaw = (infoAny?["FreeSpaceInBytes"] as? NSNumber)?.int64Value ?? 0
-            let totalSpaceRaw = (infoAny?["MaxCapability"] as? NSNumber)?.int64Value ?? 0
-            
-            let freeSpace = formatBytes(freeSpaceRaw)
-            let totalSpace = formatBytes(totalSpaceRaw)
+            let freeSpaceRaw = capacityBytes(from: infoAny?["FreeSpaceInBytes"])
+            let totalSpaceRaw = capacityBytes(from: infoAny?["MaxCapability"])
+
+            let freeSpace = freeSpaceRaw.map(formatBytes) ?? "—"
+            let totalSpace = totalSpaceRaw.flatMap { $0 > 0 ? formatBytes($0) : nil } ?? "—"
             
             return MTPStorage(id: id, name: name, freeSpace: freeSpace, totalSpace: totalSpace)
         }
     }
     
+    static func remoteExists(deviceId: String, storageId: Int, directory: String, name: String) -> Bool? {
+        let path = (directory as NSString).appendingPathComponent(name)
+        let input: [String: Any] = ["deviceId": deviceId, "storageId": storageId, "files": [path]]
+        guard let json = toJson(input) else { return nil }
+        let sem = DispatchSemaphore(value: 0)
+        CallbackState.shared.semaphore = sem
+        json.withCString { GomtpFileExists($0, cbDone) }
+        sem.wait()
+        guard let result = CallbackState.shared.lastResultJson else { return nil }
+        if let error = extractError(result) {
+            print("Cannot check destination: \(error)")
+            return nil
+        }
+        return (parseEnvelopeData(result) as? [[String: Any]])?.first?["exists"] as? Bool
+    }
+
     static func walk(deviceId: String, storageId: Int, path: String) -> [GomtpWalkFileInfo]? {
         let input: [String: Any] = [
             "deviceId": deviceId,
@@ -271,29 +306,52 @@ class CLIMTPClient {
     }
     
     static func pull(deviceId: String, storageId: Int, sources: [String], destination: String) -> Bool {
-        let input: [String: Any] = [
+        var input: [String: Any] = [
             "deviceId": deviceId,
             "storageId": storageId,
             "sources": sources,
             "destination": destination,
             "preprocessFiles": true
         ]
-        
-        guard let jsonStr = toJson(input) else { return false }
-        
-        let sem = DispatchSemaphore(value: 0)
-        CallbackState.shared.semaphore = sem
-        jsonStr.withCString { ptr in
-            GomtpDownloadFiles(ptr, cbPreprocess, cbProgress, cbDone)
-        }
-        sem.wait()
-        
-        guard let result = CallbackState.shared.lastResultJson else { return false }
-        if let err = extractError(result) {
+        // Only a zero-transfer preflight rejection may be retried after explicit consent.
+        for attempt in 0...1 {
+            guard let jsonStr = toJson(input) else { return false }
+            let sem = DispatchSemaphore(value: 0)
+            CallbackState.shared.semaphore = sem
+            jsonStr.withCString { ptr in
+                GomtpDownloadFiles(ptr, cbPreprocess, cbProgress, cbDone)
+            }
+            sem.wait()
+            guard let result = CallbackState.shared.lastResultJson else { return false }
+            guard let err = extractError(result) else { return true }
+            let envelope = (try? JSONSerialization.jsonObject(with: Data(result.utf8))) as? [String: Any]
             print("Error downloading: \(err)")
+            if let issues = envelope?["issues"] as? [[String: Any]] {
+                for issue in issues {
+                    print("  \(issue["parentPath"] ?? "") [#\(issue["objectId"] ?? "?")] \(issue["operation"] ?? ""): \(issue["reason"] ?? "")")
+                }
+            }
+            if attempt == 0,
+               envelope?["errorType"] as? String == "ErrorDownloadPreflightIncomplete",
+               envelope?["canContinue"] as? Bool == true,
+               envelope?["data"] as? Bool == false,
+               envelope?["filesSent"] as? Int64 == 0,
+               envelope?["bytesSent"] as? Int64 == 0 {
+                print("No files have been downloaded. Continue with readable items? [y/N] ", terminator: "")
+                fflush(stdout)
+                guard isatty(STDIN_FILENO) != 0,
+                      let answer = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                      answer == "y" || answer == "yes" else {
+                    print("Download cancelled.")
+                    return false
+                }
+                input["preprocessFiles"] = false
+                continue
+            }
+            print("Downloaded \(envelope?["filesSent"] ?? 0) files (\(envelope?["bytesSent"] ?? 0) bytes).")
             return false
         }
-        return true
+        return false
     }
     
     static func push(deviceId: String, storageId: Int, sources: [String], destination: String) -> Bool {
@@ -703,7 +761,7 @@ class InteractiveShell {
                 continue
             }
             let type = file.isFolder ? "<DIR>" : "     "
-            let sizeStr = file.isFolder ? "-" : String(file.size)
+            let sizeStr = file.isFolder || file.sizeKnown == false ? "-" : String(file.size)
             let paddedSize = String(repeating: " ", count: max(0, 12 - sizeStr.count)) + sizeStr
             let dateStr = localListingDate(file.dateAdded).padding(toLength: 20, withPad: " ", startingAt: 0)
             print("\(type) \(paddedSize)  \(dateStr)  \(file.name)")
@@ -770,16 +828,17 @@ class InteractiveShell {
         let remote = resolvePath(args[2])
         
         let localName = URL(fileURLWithPath: local).lastPathComponent
-        if let remoteFiles = CLIMTPClient.walk(deviceId: deviceId, storageId: storageId, path: remote) {
-            if remoteFiles.contains(where: { $0.name == localName }) {
-                print("push: '\(localName)' already exists in '\(remote)'. Overwrite? [y/n]: ", terminator: "")
-                fflush(stdout)
-                if let response = readLine(), response.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "y" {
-                    // proceed
-                } else {
-                    print("Aborted.")
-                    return
-                }
+        guard let exists = CLIMTPClient.remoteExists(deviceId: deviceId, storageId: storageId, directory: remote, name: localName) else {
+            return
+        }
+        if exists {
+            print("push: '\(localName)' already exists in '\(remote)'. Overwrite? [y/n]: ", terminator: "")
+            fflush(stdout)
+            if let response = readLine(), response.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "y" {
+                // proceed
+            } else {
+                print("Aborted.")
+                return
             }
         }
         
@@ -1142,7 +1201,7 @@ func main() {
         for file in sortedFiles {
             if !showAll && file.name.hasPrefix(".") { continue }
             let type = file.isFolder ? "<DIR>" : "     "
-            let sizeStr = file.isFolder ? "-" : String(file.size)
+            let sizeStr = file.isFolder || file.sizeKnown == false ? "-" : String(file.size)
             let paddedSize = String(repeating: " ", count: max(0, 12 - sizeStr.count)) + sizeStr
             let dateStr = localListingDate(file.dateAdded).padding(toLength: 20, withPad: " ", startingAt: 0)
             print("\(type) \(paddedSize)  \(dateStr)  \(file.name)")
@@ -1200,17 +1259,19 @@ func main() {
         if !CLIMTPClient.initialize(deviceId: deviceId) { exit(1) }
         
         let localName = URL(fileURLWithPath: localPath).lastPathComponent
-        if let remoteFiles = CLIMTPClient.walk(deviceId: deviceId, storageId: storageId, path: remotePath) {
-            if remoteFiles.contains(where: { $0.name == localName }) {
-                print("push: '\(localName)' already exists in '\(remotePath)'. Overwrite? [y/n]: ", terminator: "")
-                fflush(stdout)
-                if let response = readLine(), response.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "y" {
-                    // proceed
-                } else {
-                    print("Aborted.")
-                    CLIMTPClient.dispose(deviceId: deviceId)
-                    exit(1)
-                }
+        guard let exists = CLIMTPClient.remoteExists(deviceId: deviceId, storageId: storageId, directory: remotePath, name: localName) else {
+            CLIMTPClient.dispose(deviceId: deviceId)
+            exit(1)
+        }
+        if exists {
+            print("push: '\(localName)' already exists in '\(remotePath)'. Overwrite? [y/n]: ", terminator: "")
+            fflush(stdout)
+            if let response = readLine(), response.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "y" {
+                // proceed
+            } else {
+                print("Aborted.")
+                CLIMTPClient.dispose(deviceId: deviceId)
+                exit(1)
             }
         }
         

@@ -4,6 +4,7 @@ struct MTPFile: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let size: Int64
+    var sizeKnown = true
     let dateModified: Date
     let isDirectory: Bool
     let path: String
@@ -22,7 +23,7 @@ struct MTPFile: Identifiable, Hashable, Sendable {
     }
 
     var displaySize: String {
-        guard !isDirectory else { return "—" }
+        guard !isDirectory, sizeKnown else { return "—" }
         let bytes = Double(size)
         if bytes < 1024 { return "\(size) B" }
         if bytes < 1024 * 1024 { return String(format: "%.1f KB", bytes / 1024) }

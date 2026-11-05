@@ -19,6 +19,11 @@ final class MTPManager: ObservableObject {
     @Published var availableDevices: [MTPDeviceInfo] = []
     @Published private(set) var isTransferActive: Bool = false
     @Published var isShowingNameConflictAlert: Bool = false
+    @Published private(set) var pendingDownloadConfirmation: TransferResult?
+    @Published var transferReport: String?
+    @Published private(set) var transferReportTitle = String(localized: "Download incomplete")
+    @Published private(set) var capacityWarning: String?
+    @Published var directoryWarning: String?
     @Published var lastDirectoryJson: String = ""
     
     // NEW: Pass "" to let Go connect to the first available device, or specific ID for exact matches.
@@ -82,9 +87,17 @@ final class MTPManager: ObservableObject {
     }
 
     private var operation: Operation = .none
+    private var downloadRequestJSON: String?
+    private var downloadRetryConfirmed = false
+    private var hasTransferOperation: Bool {
+        operation == .downloading || operation == .silentDownloading || operation == .uploading
+    }
     private var transferCompletion: ((Error?) -> Void)?
     private var scopedSourceURLs: [URL] = []
     private var scopedDestinationURL: URL?
+    private var connectionGeneration = 0
+    private var capacityRefreshContext: (deviceID: String, generation: Int)?
+    private var capacityRefreshRequested = false
     private var cachedDeviceInfo: (name: String, manufacturer: String)? = nil
     private var pendingDeviceId: String? = nil
     private var pendingNavigationPath: String? = nil
@@ -108,7 +121,11 @@ final class MTPManager: ObservableObject {
         
         // These callbacks do not capture any local context.
         static let done: GomtpOnCbResult = { jsonPtr in
-            CallbackRouter.manager?.handleDone(jsonPtr: jsonPtr)
+            guard let jsonPtr else { return }
+            let jsonString = String(cString: jsonPtr)
+            DispatchQueue.main.async {
+                CallbackRouter.manager?.handleDone(jsonString: jsonString)
+            }
         }
         
         // Separate callback for device list - completely independent of operation state.
@@ -121,9 +138,20 @@ final class MTPManager: ObservableObject {
         }
         
         static let progress: GomtpOnCbResult = { jsonPtr in
-            CallbackRouter.manager?.handleProgress(jsonPtr: jsonPtr)
+            guard let jsonPtr else { return }
+            let jsonString = String(cString: jsonPtr)
+            DispatchQueue.main.async {
+                CallbackRouter.manager?.handleProgress(jsonString: jsonString)
+            }
         }
         
+        static let capacityDone: GomtpOnCbResult = { jsonPtr in
+            let jsonString = jsonPtr.map { String(cString: $0) }
+            DispatchQueue.main.async {
+                CallbackRouter.manager?.handleCapacityRefresh(jsonString)
+            }
+        }
+
         static let cancelDone: GomtpOnCbResult = { jsonPtr in
             CallbackRouter.manager?.handleCancelDone(jsonPtr: jsonPtr)
         }
@@ -156,53 +184,18 @@ final class MTPManager: ObservableObject {
         _ = jsonPtr
     }
     
-    private func handleProgress(jsonPtr: UnsafeMutablePointer<CChar>?) {
-        guard let jsonPtr else { return }
-        guard operation == .downloading || operation == .uploading || operation == .silentDownloading else { return }
-        
-        let jsonString = String(cString: jsonPtr)
+    private func handleProgress(jsonString: String) {
+        guard hasTransferOperation, pendingDownloadConfirmation == nil else { return }
         let (errorString, dataAny) = parseEnvelope(jsonString)
-        if let errorString {
-            // Cancel errors are handled by the done callback; ignore in progress.
-            if ErrorStringLocalizer.isTransferCancelledError(errorString) {
-                // Don't set operation = .none here. The done callback will
-                // handle the full cleanup including reconnection.
-                let localizedError = ErrorStringLocalizer.localize(errorString)
-                self.errorMessage = localizedError
-                return
-            }
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                if ErrorStringLocalizer.isDeviceDisconnectedError(errorString) {
-                    self.handleDeviceDisconnected()
-                } else {
-                    if self.operation != .silentDownloading {
-                        self.isTransferActive = false
-                        self.transferProgress = nil
-                        self.transferStats = nil
-                        let localizedError = ErrorStringLocalizer.localize(errorString)
-                        self.connectionState = .error(localizedError)
-                        self.errorMessage = localizedError
-                    } else {
-                        self.silentTransferStats = nil
-                    }
-                }
-            }
-            operation = .none
-            return
-        }
-        guard let dataAny else { return }
-        guard let progressData = decodeFullTransferProgress(from: dataAny) else { return }
+        // The done callback owns cleanup and the final error/partial-result report.
+        guard errorString == nil, let dataAny,
+              let progressData = decodeFullTransferProgress(from: dataAny) else { return }
         let stats = TransferStatistics(progressData: progressData)
-        
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            if self.operation == .silentDownloading {
-                self.silentTransferStats = stats
-            } else {
-                self.transferStats = stats
-                self.transferProgress = stats.progressPercentage
-            }
+        if operation == .silentDownloading {
+            silentTransferStats = stats
+        } else {
+            transferStats = stats
+            transferProgress = stats.overallProgress
         }
     }
     
@@ -265,11 +258,18 @@ final class MTPManager: ObservableObject {
         }
     }
     
-    private func handleDone(jsonPtr: UnsafeMutablePointer<CChar>?) {
-        guard let jsonPtr else { return }
-        
-        let jsonString = String(cString: jsonPtr)
-        
+    private func handleDone(jsonString: String) {
+        if (operation == .downloading || operation == .silentDownloading),
+           !downloadRetryConfirmed, downloadRequestJSON != nil,
+           let result = try? JSONDecoder().decode(TransferResult.self, from: Data(jsonString.utf8)),
+           result.requiresDownloadConfirmation {
+            pendingDownloadConfirmation = result
+            transferStats = nil
+            silentTransferStats = nil
+            transferProgress = nil
+            isTransferActive = true
+            return // Keep the request, destination access and completion until the user decides.
+        }
         switch operation {
         case .initializing:
             if let errorString = parseEnvelopeErrorOnly(jsonString) {
@@ -369,13 +369,16 @@ final class MTPManager: ObservableObject {
             
         case .walking:
             // Check if this walk was superseded by a newer directory request.
-            if let dict = try? JSONSerialization.jsonObject(with: Data(jsonString.utf8)) as? [String: Any],
-            let errorType = dict["errorType"] as? String,
-            errorType == "ErrorWalkCancelled" {
-                return
-            }
-            
-            if let errorString = parseEnvelopeErrorOnly(jsonString) {
+            // The Go backend returns errorType="ErrorWalkCancelled" when it detects
+            // that a newer Walk has been queued. In that case, silently ignore this
+            // result — the newer Walk's callback will update the UI.
+            let envelope = try? JSONSerialization.jsonObject(with: Data(jsonString.utf8)) as? [String: Any]
+            let errorType = envelope?["errorType"] as? String
+            if errorType == "ErrorWalkCancelled" { return }
+            let partial = envelope?["complete"] as? Bool == false
+            let warning = partial ? envelope?["error"] as? String : nil
+
+            if !partial, let errorString = parseEnvelopeErrorOnly(jsonString) {
                 DispatchQueue.main.async {
                     if ErrorStringLocalizer.isDeviceDisconnectedError(errorString) {
                         self.handleDeviceDisconnected()
@@ -421,6 +424,7 @@ final class MTPManager: ObservableObject {
                     id: String(fi.objectId),
                     name: fi.name,
                     size: fi.size,
+                    sizeKnown: fi.sizeKnown ?? true,
                     dateModified: MTPFile.parseModificationDate(fi.dateAdded) ?? Date(),
                     isDirectory: fi.isFolder,
                     path: fi.path,
@@ -429,102 +433,72 @@ final class MTPManager: ObservableObject {
             }
             
             DispatchQueue.main.async {
+                self.directoryWarning = warning
                 self.files = mappedFiles
                 self.isLoading = false
             }
             operation = .none
             
         case .deleting, .makingDirectory, .renaming:
-            if let errorString = parseEnvelopeErrorOnly(jsonString) {
-                DispatchQueue.main.async {
-                    if ErrorStringLocalizer.isDeviceDisconnectedError(errorString) {
-                        self.handleDeviceDisconnected()
-                    } else {
-                        let localizedError = ErrorStringLocalizer.localize(errorString)
-                        self.connectionState = .error(localizedError)
-                        self.errorMessage = localizedError
-                    }
-                }
-                operation = .none
-                return
-            }
-            
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.loadFiles(at: self.currentPath)
-            }
             operation = .none
-            
-        case .silentDownloading:
             if let errorString = parseEnvelopeErrorOnly(jsonString) {
-                self.finishTransferCompletion(errorString: errorString)
-                DispatchQueue.main.async { [weak self] in
-                    self?.silentTransferStats = nil
-                    if ErrorStringLocalizer.isDeviceDisconnectedError(errorString) {
-                        self?.handleDeviceDisconnected()
-                    }
+                if ErrorStringLocalizer.isDeviceDisconnectedError(errorString) {
+                    handleDeviceDisconnected()
+                } else {
+                    // A failed batch can still have deleted/created some items.
+                    transferReportTitle = String(localized: "Operation failed")
+                    transferReport = ErrorStringLocalizer.localize(errorString)
+                    refreshStorageCapacity()
+                    loadFiles(at: currentPath)
                 }
-                operation = .none
                 return
             }
-            self.finishTransferCompletion(errorString: nil)
-            DispatchQueue.main.async { [weak self] in
-                self?.silentTransferStats = nil
-            }
-            operation = .none
-            
-        case .downloading, .uploading:
-            // Data is a bool for done.
-            if let errorString = parseEnvelopeErrorOnly(jsonString) {
-                self.finishTransferCompletion(errorString: errorString)
-                DispatchQueue.main.async {
-                    if ErrorStringLocalizer.isDeviceDisconnectedError(errorString) {
-                        self.handleDeviceDisconnected()
-                    } else if ErrorStringLocalizer.isTransferCancelledError(errorString) {
-                        // User-initiated cancel: the MTP session is corrupt after
-                        // cancellation (broken transaction IDs, stale USB data).
-                        // Dispose and reconnect to reset the session.
-                        self.isTransferActive = false
-                        self.transferProgress = nil
-                        self.transferStats = nil
-                        let localizedError = ErrorStringLocalizer.localize(errorString)
-                        self.errorMessage = localizedError
-                        self.reconnectAndRestore(to: self.currentPath)
-                    } else {
-                        self.isTransferActive = false
-                        self.transferProgress = nil
-                        self.transferStats = nil
-                        let localizedError = ErrorStringLocalizer.localize(errorString)
-                        self.connectionState = .error(localizedError)
-                        self.errorMessage = localizedError
-                    }
-                }
-                operation = .none
-                return
-            }
-            
+            refreshStorageCapacity()
+            loadFiles(at: currentPath)
+
+        case .silentDownloading, .downloading, .uploading:
             let completedOp = operation
-            self.finishTransferCompletion(errorString: nil)
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.isTransferActive = false
-                self.transferProgress = nil
-                self.transferStats = nil
-                self.loadFiles(at: self.currentPath)
-                
-                if !NSApplication.shared.isActive {
-                    let content = UNMutableNotificationContent()
-                    content.title = String(localized: "Transfer Complete")
-                    content.body = completedOp == .uploading ? String(localized: "Import completed successfully.") : String(localized: "Export completed successfully.")
-                    let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-                    UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, _ in
-                        if granted {
-                            UNUserNotificationCenter.current().add(request)
-                        }
-                    }
+            let errorString = parseEnvelopeErrorOnly(jsonString)
+            let result = try? JSONDecoder().decode(TransferResult.self, from: Data(jsonString.utf8))
+            operation = .none
+            isTransferActive = false
+            transferProgress = nil
+            transferStats = nil
+            silentTransferStats = nil
+            finishTransferCompletion(errorString: errorString)
+
+            if let errorString {
+                if ErrorStringLocalizer.isDeviceDisconnectedError(errorString) {
+                    handleDeviceDisconnected()
+                } else if ErrorStringLocalizer.isTransferCancelledError(errorString) {
+                    errorMessage = ErrorStringLocalizer.localize(errorString)
+                    reconnectAndRestore(to: currentPath)
+                } else if completedOp != .uploading {
+                    // A partial download must remain an error, even if some files succeeded.
+                    transferReportTitle = String(localized: "Download incomplete")
+                    transferReport = result?.failureSummary ?? ErrorStringLocalizer.localize(errorString)
+                } else {
+                    transferReportTitle = String(localized: "Upload incomplete")
+                    transferReport = ErrorStringLocalizer.localize(errorString)
+                    refreshStorageCapacity()
+                    loadFiles(at: currentPath)
+                }
+                return
+            }
+
+            guard completedOp != .silentDownloading else { return }
+            if completedOp == .uploading { refreshStorageCapacity() }
+            loadFiles(at: currentPath)
+            if !NSApplication.shared.isActive {
+                let content = UNMutableNotificationContent()
+                content.title = String(localized: "Transfer Complete")
+                content.body = completedOp == .uploading ? String(localized: "Import completed successfully.") : String(localized: "Export completed successfully.")
+                let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, _ in
+                    if granted { UNUserNotificationCenter.current().add(request) }
                 }
             }
-            
+
         case .disposing:
             DispatchQueue.main.async {
                 self.connectionState = .disconnected
@@ -552,6 +526,9 @@ final class MTPManager: ObservableObject {
     
     // MARK: – Device Connection
     func connectDevice() {
+        guard !hasTransferOperation else { return }
+        connectionGeneration += 1
+        capacityWarning = nil
         DispatchQueue.main.async {
             self.connectionState = .connecting
             self.errorMessage = nil
@@ -573,6 +550,9 @@ final class MTPManager: ObservableObject {
     }
     
     func disconnectDevice() {
+        guard !hasTransferOperation else { return }
+        connectionGeneration += 1
+        capacityWarning = nil
         operation = .disposing
         let input: [String: Any] = ["deviceId": self.deviceId]
         if let jsonString = toJsonString(input) {
@@ -656,6 +636,7 @@ final class MTPManager: ObservableObject {
     
     // MARK: – Navigation
     func navigate(to directory: MTPFile) {
+        guard !hasTransferOperation else { return }
         guard directory.isDirectory else { return }
         let newPath = currentPath == "/" ? "/\(directory.name)" : "\(currentPath)/\(directory.name)"
         navigationStack.append(newPath)
@@ -663,12 +644,14 @@ final class MTPManager: ObservableObject {
     }
     
     func navigateBack() {
+        guard !hasTransferOperation else { return }
         guard canGoBack else { return }
         navigationStack.removeLast()
         loadFiles(at: currentPath)
     }
     
     func navigate(toIndex index: Int) {
+        guard !hasTransferOperation else { return }
         guard index < navigationStack.count else { return }
         navigationStack = Array(navigationStack.prefix(index + 1))
         loadFiles(at: currentPath)
@@ -677,6 +660,7 @@ final class MTPManager: ObservableObject {
     /// Navigate directly to an absolute path (e.g. "/Pictures/Screenshots").
     /// Builds the full breadcrumb navigation stack from "/" to the target.
     func navigateToPath(_ path: String) {
+        guard !hasTransferOperation else { return }
         guard selectedStorage != nil else { return }
         var stack: [String] = ["/"]
         let components = path.split(separator: "/").map(String.init)
@@ -691,10 +675,12 @@ final class MTPManager: ObservableObject {
     
     // MARK: – File Listing
     func loadFiles(at path: String) {
+        guard !hasTransferOperation else { return }
         guard let storage = selectedStorage else { return }
         guard storage.id != "" else { return }
         
         DispatchQueue.main.async { [weak self] in
+            self?.directoryWarning = nil
             self?.isLoading = true
         }
         
@@ -727,6 +713,7 @@ final class MTPManager: ObservableObject {
     
     // MARK: – Transfer
     func download(files: [MTPFile], destinationURL: URL) {
+        guard !hasTransferOperation else { return }
         guard !files.isEmpty else { return }
         guard let storage = selectedStorage else { return }
         
@@ -759,14 +746,11 @@ final class MTPManager: ObservableObject {
             return
         }
         operation = .downloading
-        DispatchQueue.global(qos: .userInitiated).async {
-            jsonString.withCString { ptr in
-                GomtpDownloadFiles(ptr, CallbackRouter.preprocess, CallbackRouter.progress, CallbackRouter.done)
-            }
-        }
+        startDownload(jsonString)
     }
     
     func upload(sourceURLs: [URL]) {
+        guard !hasTransferOperation else { return }
         guard !sourceURLs.isEmpty else { return }
         guard let storage = selectedStorage else { return }
         
@@ -806,13 +790,7 @@ final class MTPManager: ObservableObject {
     }
     
     func downloadPromise(file: MTPFile, to destinationFolderURL: URL, completion: @escaping (Error?) -> Void) {
-        if case .downloading = operation {
-            completion(NSError(domain: "MTPManager.Transfer", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "Another transfer is already running."
-            ]))
-            return
-        }
-        if case .uploading = operation {
+        if hasTransferOperation {
             completion(NSError(domain: "MTPManager.Transfer", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Another transfer is already running."
             ]))
@@ -854,23 +832,13 @@ final class MTPManager: ObservableObject {
         }
         
         operation = .downloading
-        DispatchQueue.global(qos: .userInitiated).async {
-            jsonString.withCString { ptr in
-                GomtpDownloadFiles(ptr, CallbackRouter.preprocess, CallbackRouter.progress, CallbackRouter.done)
-            }
-        }
+        startDownload(jsonString)
     }
     
     /// Download multiple files from device as a batch promise (for drag-to-Finder).
     /// Sends all file paths in a single GomtpDownloadFiles call for proper "n of n" progress.
     func downloadPromiseBatch(files: [MTPFile], to destinationFolderURL: URL, completion: @escaping (Error?) -> Void) {
-        if case .downloading = operation {
-            completion(NSError(domain: "MTPManager.Transfer", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "Another transfer is already running."
-            ]))
-            return
-        }
-        if case .uploading = operation {
+        if hasTransferOperation {
             completion(NSError(domain: "MTPManager.Transfer", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Another transfer is already running."
             ]))
@@ -911,11 +879,7 @@ final class MTPManager: ObservableObject {
         }
         
         operation = .downloading
-        DispatchQueue.global(qos: .userInitiated).async {
-            jsonString.withCString { ptr in
-                GomtpDownloadFiles(ptr, CallbackRouter.preprocess, CallbackRouter.progress, CallbackRouter.done)
-            }
-        }
+        startDownload(jsonString)
     }
     
     func downloadAndPreview(file: MTPFile, to destinationFolderURL: URL, completion: @escaping (Error?) -> Void) {
@@ -953,14 +917,11 @@ final class MTPManager: ObservableObject {
         }
         
         operation = .silentDownloading
-        DispatchQueue.global(qos: .userInitiated).async {
-            jsonString.withCString { ptr in
-                GomtpDownloadFiles(ptr, CallbackRouter.preprocess, CallbackRouter.progress, CallbackRouter.done)
-            }
-        }
+        startDownload(jsonString)
     }
     
     func deleteFiles(_ filesToDelete: [MTPFile]) {
+        guard !hasTransferOperation else { return }
         guard !filesToDelete.isEmpty else { return }
         guard let storage = selectedStorage else { return }
         
@@ -983,6 +944,7 @@ final class MTPManager: ObservableObject {
     }
     
     func createFolder(named name: String) {
+        guard !hasTransferOperation else { return }
         guard let storage = selectedStorage else { return }
         
         if files.contains(where: { $0.name == name }) {
@@ -1014,6 +976,7 @@ final class MTPManager: ObservableObject {
     }
     
     func renameFile(_ file: MTPFile, to newName: String) {
+        guard !hasTransferOperation else { return }
         guard let storage = selectedStorage else { return }
         
         if file.name != newName && files.contains(where: { $0.name == newName }) {
@@ -1045,8 +1008,51 @@ final class MTPManager: ObservableObject {
         }
     }
     
+    private func startDownload(_ jsonString: String) {
+        downloadRequestJSON = jsonString
+        downloadRetryConfirmed = false
+        transferReport = nil
+        transferStats = nil
+        silentTransferStats = nil
+        sendDownload(jsonString)
+    }
+
+    private func sendDownload(_ jsonString: String) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            jsonString.withCString { ptr in
+                GomtpDownloadFiles(ptr, CallbackRouter.preprocess, CallbackRouter.progress, CallbackRouter.done)
+            }
+        }
+    }
+
+    func resolveDownloadPreflight(continueDownload: Bool) {
+        guard pendingDownloadConfirmation != nil else { return }
+        pendingDownloadConfirmation = nil
+        if continueDownload, let original = downloadRequestJSON,
+           var input = try? JSONSerialization.jsonObject(with: Data(original.utf8)) as? [String: Any] {
+            input["preprocessFiles"] = false
+            if let jsonString = toJsonString(input) {
+                downloadRetryConfirmed = true
+                isTransferActive = operation != .silentDownloading
+                sendDownload(jsonString)
+                return
+            }
+        }
+        // No transfer started: cancellation here needs neither CancelTransfer nor reconnect.
+        operation = .none
+        isTransferActive = false
+        transferProgress = nil
+        transferStats = nil
+        silentTransferStats = nil
+        finishTransferCompletion(errorString: String(localized: "Download cancelled before transferring files."))
+    }
+
     // MARK: – Cancel Transfer
     func cancelTransfer() {
+        if pendingDownloadConfirmation != nil {
+            resolveDownloadPreflight(continueDownload: false)
+            return
+        }
         guard isTransferActive else { return }
         
         let input: [String: Any] = ["deviceId": self.deviceId]
@@ -1079,6 +1085,8 @@ final class MTPManager: ObservableObject {
     /// (broken transaction IDs, pending USB data, or invalid directory access). We must 
     /// dispose and reconnect to reset the protocol state, then navigate to the target path.
     func reconnectAndRestore(to targetPath: String) {
+        connectionGeneration += 1
+        capacityWarning = nil
         let savedPath = targetPath
         let savedDeviceId = self.deviceId
         
@@ -1113,6 +1121,8 @@ final class MTPManager: ObservableObject {
     }
     
     private func handleDeviceDisconnected() {
+        connectionGeneration += 1
+        capacityWarning = nil
         connectionState = .disconnected
         files = []
         navigationStack = []
@@ -1121,6 +1131,8 @@ final class MTPManager: ObservableObject {
         isTransferActive = false
         transferProgress = nil
         transferStats = nil
+        silentTransferStats = nil
+        operation = .none
         finishTransferCompletion(errorString: "Device disconnected.")
         errorMessage = nil
     }
@@ -1143,6 +1155,9 @@ final class MTPManager: ObservableObject {
     }
     
     private func finishTransferCompletion(errorString: String?) {
+        downloadRequestJSON = nil
+        downloadRetryConfirmed = false
+        pendingDownloadConfirmation = nil
         endSecurityScopedAccess()
         guard let completion = transferCompletion else { return }
         transferCompletion = nil
@@ -1155,18 +1170,60 @@ final class MTPManager: ObservableObject {
         }
     }
     
-    private func fetchStorages() {
-        operation = .fetchingStorages
-        let input: [String: Any] = ["deviceId": self.deviceId]
-        if let jsonString = toJsonString(input) {
-            DispatchQueue.global(qos: .userInitiated).async {
-                jsonString.withCString { ptr in
-                    GomtpFetchStorages(ptr, CallbackRouter.done)
-                }
+    /// Separate callback routing lets capacity refresh coexist with the directory walk.
+    /// Backend locking serializes device access; this does not replace `operation`.
+    func refreshStorageCapacity() {
+        guard connectionState.isConnected else { return }
+        if capacityRefreshContext != nil {
+            capacityRefreshRequested = true
+            return
+        }
+        guard let jsonString = toJsonString(["deviceId": deviceId]) else { return }
+        capacityRefreshContext = (deviceId, connectionGeneration)
+        DispatchQueue.global(qos: .userInitiated).async {
+            jsonString.withCString { ptr in
+                GomtpFetchStorages(ptr, CallbackRouter.capacityDone)
             }
         }
     }
-    
+
+    private func handleCapacityRefresh(_ jsonString: String?) {
+        guard let context = capacityRefreshContext else { return }
+        capacityRefreshContext = nil
+        defer {
+            if capacityRefreshRequested {
+                capacityRefreshRequested = false
+                refreshStorageCapacity()
+            }
+        }
+        guard context.deviceID == deviceId, context.generation == connectionGeneration,
+              case .connected(let device) = connectionState else { return }
+        guard let jsonString, parseEnvelopeErrorOnly(jsonString) == nil,
+              let data = parseEnvelopeData(jsonString) as? [[String: Any]] else {
+            capacityWarning = String(localized: "Could not refresh capacity. Showing previous values.")
+            return
+        }
+        let storages = parseStorages(data)
+        guard !storages.isEmpty else {
+            capacityWarning = String(localized: "Could not refresh capacity. Showing previous values.")
+            return
+        }
+        // Do not select the first storage or navigate to root as initial connection does.
+        if let selected = selectedStorage {
+            guard let updated = storages.first(where: { $0.id == selected.id }) else {
+                capacityWarning = String(localized: "Could not refresh capacity. Showing previous values.")
+                return
+            }
+            selectedStorage = updated
+        }
+        connectionState = .connected(MTPDevice(
+            id: device.id, name: device.name, manufacturer: device.manufacturer,
+            storages: storages, usbProtocol: device.usbProtocol,
+            usbSpeedMbps: device.usbSpeedMbps, maxSpeedBytesPerSecond: device.maxSpeedBytesPerSecond
+        ))
+        capacityWarning = nil
+    }
+
     func fetchAvailableDevices() {
         // NOTE: Does NOT set `operation` - device scanning is completely independent
         // of the MTP operation state machine. This prevents clobbering in-flight
@@ -1177,6 +1234,7 @@ final class MTPManager: ObservableObject {
     }
     
     func switchDevice(to newDeviceId: String) {
+        guard !hasTransferOperation else { return }
         guard !newDeviceId.isEmpty else { return }
         
         // If already connected to this device, do nothing.
@@ -1294,13 +1352,14 @@ final class MTPManager: ObservableObject {
         guard let list = any as? [[String: Any]] else { return [] }
         return list.compactMap { storage in
             let sidInt = int64FromAny(storage["Sid"]) ?? int64FromAny(storage["sid"]) ?? 0
-            let id = String(UInt32(max(sidInt, 0)))
+            guard let sid = UInt32(exactly: sidInt) else { return nil }
+            let id = String(sid)
             
             let infoAny = storage["Info"] as? [String: Any] ?? storage["info"] as? [String: Any]
             let name = infoAny?["StorageDescription"] as? String ?? "Storage"
             
-            let freeSpace = int64FromAny(infoAny?["FreeSpaceInBytes"]) ?? 0
-            let totalSpace = int64FromAny(infoAny?["MaxCapability"]) ?? 0
+            let freeSpace = MTPStorage.capacityBytes(from: infoAny?["FreeSpaceInBytes"])
+            let totalSpace = MTPStorage.capacityBytes(from: infoAny?["MaxCapability"])
             
             return MTPStorage(
                 id: id,
@@ -1314,10 +1373,10 @@ final class MTPManager: ObservableObject {
     private func int64FromAny(_ any: Any?) -> Int64? {
         switch any {
         case let v as Int64: return v
-        case let v as UInt64: return Int64(v)
+        case let v as UInt64: return Int64(exactly: v)
         case let v as Int: return Int64(v)
-        case let v as Double: return Int64(v)
-        case let v as Float: return Int64(v)
+        case let v as Double: return Int64(exactly: v)
+        case let v as Float: return Int64(exactly: v)
         case let v as NSNumber: return v.int64Value
         default: return nil
         }
@@ -1325,6 +1384,7 @@ final class MTPManager: ObservableObject {
     
     private struct GomtpWalkFileInfo: Decodable {
         let size: Int64
+        let sizeKnown: Bool?
         let isFolder: Bool
         let dateAdded: String
         let name: String
@@ -1333,7 +1393,7 @@ final class MTPManager: ObservableObject {
         let objectId: UInt32
         
         private enum CodingKeys: String, CodingKey {
-            case size
+            case size, sizeKnown
             case isFolder
             case dateAdded
             case name
@@ -1343,11 +1403,6 @@ final class MTPManager: ObservableObject {
         }
     }
     
-    private struct TransferSizeInfo: Decodable {
-        let total: Int64?
-        let sent: Int64?
-        let progress: Float?
-    }
     // MARK: - Transfer Progress Decoding
     
     private func decodeFullTransferProgress(from dataAny: Any) -> TransferProgressData? {

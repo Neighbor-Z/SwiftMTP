@@ -200,7 +200,7 @@ struct FileGalleryView: View {
                     } else if inlinePreviewLoading && inlinePreviewFileID == file.id {
                         ProgressView()
                             .scaleEffect(0.8)
-                    } else if file.size > 10 * 1024 * 1024 {
+                    } else if !file.sizeKnown || file.size > 10 * 1024 * 1024 {
                         VStack(spacing: 12) {
                             Image(nsImage: getPreviewIcon(for: file))
                                 .resizable()
@@ -236,7 +236,7 @@ struct FileGalleryView: View {
             inlinePreviewLoading = false
             if let file = primarySelectedFile,
                isPreviewableMedia(file),
-               file.size <= 10 * 1024 * 1024 {
+               file.sizeKnown, file.size <= 10 * 1024 * 1024 {
                 loadInlinePreview(for: file)
             }
         }

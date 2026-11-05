@@ -605,7 +605,7 @@ final class QuickLookHelper {
 
             // Automatically load preview for files under 10MB
             let sizeThreshold: Int64 = 10 * 1024 * 1024
-            if file.size <= sizeThreshold {
+            if file.sizeKnown && file.size <= sizeThreshold {
                 mountOverlay(state: .loading)
                 triggerSilentDownload(file: file, dest: tempDir, using: manager)
             } else {

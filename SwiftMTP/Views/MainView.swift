@@ -64,7 +64,7 @@ struct MainView: View {
         // Only the current main window may consume a pending request.
         guard WindowManager.shared.isMainWindow(id: mainWindowID),
               !isSharePickerActive, pendingShareTransfer == nil,
-              !manager.isTransferActive, let request = quickActionState.takeNext() else { return }
+              !manager.isTransferActive, manager.transferReport == nil, let request = quickActionState.takeNext() else { return }
         isSharePickerActive = true
         activeShareRequest = request
     }
@@ -109,16 +109,57 @@ struct MainView: View {
         .animation(.easeInOut(duration: 0.18), value: isShowingDeviceInfo)
         .sheet(
             isPresented: Binding(
-                get: { manager.isTransferActive },
+                get: { manager.isTransferActive || manager.transferReport != nil },
                 set: { _ in }
             ),
             onDismiss: { presentNextShareRequest() }
         ) {
-            TransferOverlay(
-                stats: manager.transferStats,
-                isPreparing: manager.isTransferActive && manager.transferStats == nil,
-                onCancel: { manager.cancelTransfer() }
-            )
+            Group {
+                if let confirmation = manager.pendingDownloadConfirmation {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Download scan incomplete").font(.headline)
+                        Text("Some items could not be read. Continue with readable items?")
+                        ScrollView {
+                            Text(confirmation.issueDetails)
+                                .font(.caption).textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 200)
+                        HStack {
+                            Spacer()
+                            Button("Cancel", role: .cancel) {
+                                manager.resolveDownloadPreflight(continueDownload: false)
+                            }
+                            .keyboardShortcut(.cancelAction)
+                            Button("Continue") {
+                                manager.resolveDownloadPreflight(continueDownload: true)
+                            }
+                        }
+                    }
+                    .padding(20).frame(width: 460)
+                } else if let report = manager.transferReport {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(manager.transferReportTitle).font(.headline)
+                        ScrollView {
+                            Text(report).textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 240)
+                        HStack {
+                            Spacer()
+                            Button("OK") { manager.transferReport = nil }
+                                .keyboardShortcut(.defaultAction)
+                        }
+                    }
+                    .padding(20).frame(width: 460)
+                } else {
+                    TransferOverlay(
+                        stats: manager.transferStats,
+                        isPreparing: manager.isTransferActive && manager.transferStats == nil,
+                        onCancel: { manager.cancelTransfer() }
+                    )
+                }
+            }
             .interactiveDismissDisabled(true)
         }
         .popover(isPresented: $isShowingAISearch) {
@@ -499,16 +540,16 @@ struct MainView: View {
                 Spacer()
                 if let stats = manager.silentTransferStats {
                     HStack(spacing: 8) {
-                        ProgressView(value: stats.progressPercentage)
+                        ProgressView(value: stats.overallProgress)
                             .progressViewStyle(.linear)
                             .frame(width: 100)
                         Text(stats.speedString)
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(.secondary)
-                        Text(stats.remainingTimeString)
+                        Text(stats.overallProgress == nil ? stats.totalSentSizeString : stats.remainingTimeString)
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(.secondary)
-                        Text(stats.progressPercentage.formatted(.percent.precision(.fractionLength(0))))
+                        Text(stats.overallProgress?.formatted(.percent.precision(.fractionLength(0))) ?? "—")
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
@@ -531,6 +572,8 @@ struct MainView: View {
     }
 
     private var statusText: String {
+        if manager.connectionState.device != nil, let warning = manager.capacityWarning { return warning }
+        if manager.connectionState.device != nil, let warning = manager.directoryWarning { return warning }
         if let _ = manager.silentTransferStats {
             return String(localized: "Preparing preview...")
         }
@@ -1003,7 +1046,8 @@ private struct TransferOverlay: View {
         if isPreparing {
             return "\(0.formatted(.percent))"
         }
-        return (stats?.progressPercentage ?? 0).formatted(.percent.precision(.fractionLength(0)))
+        guard let progress = stats?.overallProgress else { return "—" }
+        return progress.formatted(.percent.precision(.fractionLength(0)))
     }
 
     var body: some View {
@@ -1013,11 +1057,11 @@ private struct TransferOverlay: View {
                 
             HStack(spacing: 8) {
                 Group {
-                    if isPreparing {
+                    if isPreparing || stats?.overallProgress == nil {
                         ProgressView()
                             .progressViewStyle(.linear)
                     } else {
-                        ProgressView(value: stats?.progressPercentage ?? 0)
+                        ProgressView(value: stats?.overallProgress)
                             .progressViewStyle(.linear)
                     }
                 }
@@ -1046,7 +1090,7 @@ private struct TransferOverlay: View {
             .foregroundStyle(.secondary)
             .frame(width: 360)
 
-            HStack(spacing: 0) {            
+            HStack(spacing: 0) {
                 Text(totalSentText)
                     .font(.system(size: 11))
                 Text("Remaining:", tableName: "Localizable")
