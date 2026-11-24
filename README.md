@@ -28,13 +28,20 @@ Inspired by [OpenMTP](https://github.com/ganeshrvel/openmtp/), SwiftMTP uses the
 
 ## News
 
-<details>
+<details open>
 
 <summary>
   
 ### Upcoming
 </summary>
-Please stay tuned!
+
+#### Live Activity
+
+Introducing Live Activity. On **macOS 27.3** or later, you can check the transfer progress on the menu bar in real-time. On the new **MacBook Pro with PROLED XDR Display** model, this activity will be presented in the form of Dynamic Island.
+
+![Live Activity1](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Live_Activity-1.PNG)
+![Live Activity2](https://github.com/Neighbor-Z/SwiftMTP/blob/main/Materials/Live_Activity-2.PNG)
+
 </details>
 
 <details>
